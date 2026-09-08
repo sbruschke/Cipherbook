@@ -61,12 +61,14 @@ struct ReaderScreen: View {
          String(settings.lineHeight), String(settings.margin),
          String(settings.letterSpacing), String(settings.justified),
          String(settings.dualFont), String(settings.swapped),
-         settings.theme.rawValue].joined(separator: "|")
+         String(settings.forceSize), settings.theme.rawValue,
+         settings.customBackground, settings.customForeground,
+         settings.customMuted, settings.customAccent].joined(separator: "|")
     }
 
     var body: some View {
         ZStack(alignment: .top) {
-            settings.theme.uiBackground.ignoresSafeArea()
+            settings.palette.uiBackground.ignoresSafeArea()
             ReaderWebView(model: model).ignoresSafeArea(edges: .bottom)
 
             if model.showChrome {
@@ -79,7 +81,7 @@ struct ReaderScreen: View {
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
         .statusBarHidden(!model.showChrome)
-        .preferredColorScheme(settings.theme.isDark ? .dark : .light)
+        .preferredColorScheme(settings.palette.isDark ? .dark : .light)
         .onChange(of: styleToken) { _ in model.settingsChanged() }
         .onChange(of: model.chapter) { _ in persist() }
         .onDisappear {

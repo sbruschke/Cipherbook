@@ -1,0 +1,125 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g. 1.0.1)'
+        required: true
+
+jobs:
+  release:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Resolve release metadata
+        id: meta
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+            VERSION="${TAG#v}"
+            BODY=$(git cat-file tag "$TAG" 2>/dev/null \
+              | python3 -c 'import sys; d=sys.stdin.read(); p=d.split("\n\n",1); sys.stdout.write(p[1].rstrip("\n") if len(p)>1 else "")' || true)
+            [[ -n "$BODY" ]] || BODY=$(git log -1 --format='%s' "$TAG")
+          else
+            VERSION="${{ github.event.inputs.version }}"
+            BODY=$(git log -1 --format='%s')
+          fi
+          BUILD="${{ github.run_number }}"
+          DESC_FILE="$RUNNER_TEMP/release-description.txt"
+          printf '%s' "$BODY" > "$DESC_FILE"
+          {
+            echo "version=$VERSION"
+            echo "build=$BUILD"
+            echo "date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+            echo "ipa_name=Cipherbook-${VERSION}-build${BUILD}.ipa"
+            echo "description_file=$DESC_FILE"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Select latest Xcode
+        run: |
+          LATEST_XCODE="$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
+          sudo xcode-select -s "$LATEST_XCODE"
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Build unsigned .app
+        run: |
+          xcodegen generate
+          xcodebuild \
+            -project Cipherbook.xcodeproj \
+            -scheme Cipherbook \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            MARKETING_VERSION="${{ steps.meta.outputs.version }}" \
+            CURRENT_PROJECT_VERSION="${{ steps.meta.outputs.build }}" \
+            -IDEPackageSupportUseBuiltinSCM=YES \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            build
+
+      - name: Package .ipa
+        id: package
+        run: |
+          set -euo pipefail
+          mkdir -p build/Payload
+          cp -R build/Build/Products/Release-iphoneos/Cipherbook.app build/Payload/
+          (cd build && zip -qr "${{ steps.meta.outputs.ipa_name }}" Payload)
+          echo "ipa_path=build/${{ steps.meta.outputs.ipa_name }}" >> "$GITHUB_OUTPUT"
+
+      - name: Render source.json
+        env:
+          DESCRIPTION_FILE: ${{ steps.meta.outputs.description_file }}
+          IPA_PATH: ${{ steps.package.outputs.ipa_path }}
+        run: |
+          set -euo pipefail
+          ./scripts/render-source-json.sh \
+            "${{ steps.meta.outputs.version }}" \
+            "${{ steps.meta.outputs.build }}" \
+            "${{ steps.meta.outputs.date }}" \
+            "$(cat "$DESCRIPTION_FILE")" \
+            "$IPA_PATH" > /tmp/source.json
+          jq empty /tmp/source.json
+          cat /tmp/source.json
+
+      - name: Commit release feed to main
+        env:
+          IPA_NAME: ${{ steps.meta.outputs.ipa_name }}
+          IPA_PATH: ${{ steps.package.outputs.ipa_path }}
+        run: |
+          set -euo pipefail
+          git config user.name "Cipherbook CI"
+          git config user.email "ci@users.noreply.github.com"
+          mkdir -p releases
+          cp "$IPA_PATH" "releases/${IPA_NAME}"
+          cp /tmp/source.json source.json
+          # Keep only the three most recent IPAs in-repo.
+          ls -1t releases/*.ipa | tail -n +4 | xargs -r git rm -q --ignore-unmatch || true
+          ls -1t releases/*.ipa | tail -n +4 | xargs -r rm -f || true
+          git add releases source.json
+          git commit -m "release: Cipherbook v${{ steps.meta.outputs.version }} (build ${{ steps.meta.outputs.build }})"
+          git push origin HEAD:main
+
+      - name: Summary
+        run: |
+          {
+            echo "### Cipherbook v${{ steps.meta.outputs.version }} (build ${{ steps.meta.outputs.build }})"
+            echo ""
+            echo "LiveContainer source URL:"
+            echo '`https://raw.githubusercontent.com/sbruschke/Cipherbook/main/source.json`'
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -35,38 +35,46 @@ enum ReaderRenderer {
                     top: FontChoice,
                     bottom: FontChoice,
                     faces: [FontChoice]) -> String {
-        let t = settings.theme
+        let p = settings.palette
         let align = settings.justified ? "justify" : "left"
         // Ruby annotations need extra room between lines.
         let lh = settings.dualFont ? settings.lineHeight + 0.9 : settings.lineHeight
-        let accent = t.isDark ? "#7aa9e0" : "#2b6cb0"
         let fallback = "-apple-system, \"Helvetica Neue\", serif"
+        // Books routinely pin font-size on <p>; inheriting from <body> alone
+        // would let their stylesheet win, so normalise the text containers.
+        let textBlocks = "body p, body li, body dd, body dt, body div, body span, "
+            + "body td, body th, body blockquote, body figcaption, body section, body article"
 
         return fontFaceCSS(for: faces) + """
-        :root { color-scheme: \(t.isDark ? "dark" : "light"); }
-        html { -webkit-text-size-adjust: 100% !important; background: \(t.background) !important; }
+        :root { color-scheme: \(p.isDark ? "dark" : "light"); }
+        html { -webkit-text-size-adjust: 100% !important; background: \(p.background) !important; }
         body {
-          background: \(t.background) !important;
-          color: \(t.foreground) !important;
+          background: \(p.background) !important;
+          color: \(p.foreground) !important;
           margin: 0 !important;
           padding: 28px \(Int(settings.margin))px 96px \(Int(settings.margin))px !important;
           font-size: \(Int(settings.fontSize))px !important;
-          line-height: \(String(format: "%.2f", lh)) !important;
           text-align: \(align) !important;
-          letter-spacing: \(String(format: "%.2f", settings.letterSpacing))px !important;
           -webkit-hyphens: auto; hyphens: auto;
           word-wrap: break-word; overflow-wrap: break-word;
         }
         body, body * {
           font-family: \(top.cssFamily), \(fallback) !important;
-          color: \(t.foreground) !important;
+          color: \(p.foreground) !important;
           background-color: transparent !important;
+          background-image: none !important;
+          line-height: \(String(format: "%.2f", lh)) !important;
+          letter-spacing: \(String(format: "%.2f", settings.letterSpacing))px !important;
           max-width: 100% !important;
         }
+        \(settings.forceSize ? "\(textBlocks) { font-size: 1em !important; }" : "")
+        body p, body li, body dd, body blockquote {
+          text-align: \(align) !important;
+        }
         img, svg, video { max-width: 100% !important; height: auto !important; }
-        a, a * { color: \(accent) !important; text-decoration: none !important; }
-        hr { border-color: \(t.muted) !important; }
-        ::selection { background: \(accent)44; }
+        a, a * { color: \(p.accent) !important; text-decoration: none !important; }
+        hr { border-color: \(p.muted) !important; }
+        ::selection { background: \(p.accent)44; }
         ruby.cb-ruby {
           display: ruby;
           ruby-position: under;
@@ -76,7 +84,7 @@ enum ReaderRenderer {
         body ruby.cb-ruby rt.cb-rt {
           font-family: \(bottom.cssFamily), \(fallback) !important;
           font-size: \(String(format: "%.2f", settings.subScale))em !important;
-          color: \(t.muted) !important;
+          color: \(p.muted) !important;
           letter-spacing: 0 !important;
           line-height: 1.15 !important;
           font-weight: 400 !important;

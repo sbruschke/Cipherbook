@@ -18,7 +18,9 @@ struct ReaderSettingsView: View {
                            sub: settings.swapped ? mainFont : subFont,
                            settings: settings)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
+                    .padding(.vertical, 14)
+                    .background(settings.palette.uiBackground)
+                    .listRowInsets(EdgeInsets())
             }
 
             Section("Fonts") {
@@ -41,28 +43,44 @@ struct ReaderSettingsView: View {
                         }
                     }
                     Toggle("Swap main and sub", isOn: $settings.swapped)
-                    slider("Sub size", value: $settings.subScale, range: 0.35...1.0, step: 0.05,
+                    slider("Sub size", value: $settings.subScale, range: 0.25...1.4, step: 0.05,
                            format: { String(format: "%.0f%%", $0 * 100) })
                 }
             }
 
             Section("Layout") {
-                slider("Text size", value: $settings.fontSize, range: 12...36, step: 1,
+                slider("Text size", value: $settings.fontSize, range: 10...90, step: 1,
                        format: { "\(Int($0)) pt" })
-                slider("Line spacing", value: $settings.lineHeight, range: 1.1...3.0, step: 0.1,
-                       format: { String(format: "%.1f", $0) })
-                slider("Margins", value: $settings.margin, range: 0...60, step: 2,
+                slider("Line spacing", value: $settings.lineHeight, range: 0.9...4.0, step: 0.05,
+                       format: { String(format: "%.2f", $0) })
+                slider("Margins", value: $settings.margin, range: 0...180, step: 2,
                        format: { "\(Int($0)) pt" })
-                slider("Letter spacing", value: $settings.letterSpacing, range: -1...8, step: 0.5,
+                slider("Letter spacing", value: $settings.letterSpacing, range: -2...16, step: 0.5,
                        format: { String(format: "%.1f", $0) })
                 Toggle("Justify text", isOn: $settings.justified)
+                Toggle("Override the book's own text sizes", isOn: $settings.forceSize)
             }
 
-            Section("Theme") {
+            Section {
                 Picker("Theme", selection: $settings.theme) {
                     ForEach(ReaderTheme.allCases) { Text($0.label).tag($0) }
                 }
                 .pickerStyle(.segmented)
+
+                if settings.theme == .custom {
+                    ColorPicker("Background", selection: hexBinding($settings.customBackground))
+                    ColorPicker("Main text", selection: hexBinding($settings.customForeground))
+                    ColorPicker("Sub text", selection: hexBinding($settings.customMuted))
+                    ColorPicker("Links", selection: hexBinding($settings.customAccent))
+                    Button("Copy current theme's colors") { seedCustomFromBuiltIn() }
+                        .font(.footnote)
+                }
+            } header: {
+                Text("Theme")
+            } footer: {
+                if settings.theme == .custom {
+                    Text("Sub text is the colour of the second font under each word.")
+                }
             }
 
             Section {
@@ -107,6 +125,18 @@ struct ReaderSettingsView: View {
         }
     }
 
+    /// Seeds the custom palette from the last built-in theme so editing starts
+    /// from something readable rather than from whatever was there before.
+    private func seedCustomFromBuiltIn() {
+        let source = ReaderTheme(rawValue: UserDefaults.standard.string(forKey: "lastBuiltInTheme") ?? "")
+            ?? .light
+        guard let p = source.builtIn else { return }
+        settings.customBackground = p.background
+        settings.customForeground = p.foreground
+        settings.customMuted = p.muted
+        settings.customAccent = p.accent
+    }
+
     private func slider(_ title: String,
                         value: Binding<Double>,
                         range: ClosedRange<Double>,
@@ -145,11 +175,13 @@ struct DualSample: View {
         HStack(alignment: .top, spacing: 10) {
             ForEach(words, id: \.self) { word in
                 VStack(spacing: 2) {
-                    Text(word).font(uiFont(main, size: settings.fontSize))
+                    Text(word)
+                        .font(uiFont(main, size: min(settings.fontSize, 34)))
+                        .foregroundStyle(settings.palette.uiForeground)
                     if settings.dualFont {
                         Text(word)
-                            .font(uiFont(sub, size: settings.fontSize * settings.subScale))
-                            .foregroundStyle(.secondary)
+                            .font(uiFont(sub, size: min(settings.fontSize, 34) * settings.subScale))
+                            .foregroundStyle(settings.palette.uiMuted)
                     }
                 }
             }
