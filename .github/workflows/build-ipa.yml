@@ -1,0 +1,76 @@
+name: build-ipa
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select latest Xcode
+        run: |
+          # Pick the highest-versioned Xcode installed on the runner.
+          LATEST_XCODE="$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
+          echo "Using $LATEST_XCODE"
+          sudo xcode-select -s "$LATEST_XCODE"
+          xcodebuild -version
+          xcodebuild -showsdks | grep -i ios || true
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: |
+          xcodegen generate
+          ls -la Cipherbook.xcodeproj
+
+      - name: Build unsigned .app
+        run: |
+          set +e
+          xcodebuild \
+            -project Cipherbook.xcodeproj \
+            -scheme Cipherbook \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            -IDEPackageSupportUseBuiltinSCM=YES \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            build 2>&1 | tee /tmp/xcodebuild.log
+          rc=${PIPESTATUS[0]}
+          if [ $rc -ne 0 ]; then
+            echo ""
+            echo "=== Filtered Swift diagnostics (loose) ==="
+            grep -E "(error|warning):" /tmp/xcodebuild.log | grep -vE "(^Selected|0 error)" | head -120 || true
+            echo ""
+            echo "=== Output JSON-style fragments ==="
+            grep -oE '"output":"[^"]+"' /tmp/xcodebuild.log | sed 's/\\n/\n/g; s/"output":"//; s/"$//' | head -120 || true
+            echo ""
+            echo "=== Tail of build log ==="
+            tail -200 /tmp/xcodebuild.log
+            exit $rc
+          fi
+
+      - name: Package .ipa
+        run: |
+          mkdir -p build/Payload
+          cp -R build/Build/Products/Release-iphoneos/Cipherbook.app build/Payload/
+          (cd build && zip -qr Cipherbook.ipa Payload)
+          ls -la build/Cipherbook.ipa
+          unzip -l build/Cipherbook.ipa | head
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Cipherbook-ipa
+          path: build/Cipherbook.ipa
+          if-no-files-found: error
+          retention-days: 14
