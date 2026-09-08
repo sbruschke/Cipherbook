@@ -1,0 +1,24 @@
+{
+  "name": "Cipherbook",
+  "identifier": "dev.dxshdw.cipherbook.source",
+  "sourceURL": "https://raw.githubusercontent.com/sbruschke/Cipherbook/main/source.json",
+  "apps": [
+    {
+      "name": "Cipherbook",
+      "bundleIdentifier": "dev.dxshdw.cipherbook",
+      "developerName": "dxshdw",
+      "subtitle": "Dual-font EPUB reader",
+      "localizedDescription": "An EPUB reader that renders every word in two typefaces at once — a main font on the line and a smaller second font directly underneath — for learning a cipher or conscript. Import your own fonts, switch them in two taps, and build custom colour themes.",
+      "tintColor": "#7FB28A",
+      "version": "1.1.0",
+      "buildVersion": "1",
+      "versionDate": "2026-09-08T14:58:02Z",
+      "versionDescription": "Custom colour themes, much wider size/margin/line-spacing ranges, working line spacing, LiveContainer source feed.",
+      "downloadURL": "https://raw.githubusercontent.com/sbruschke/Cipherbook/main/releases/Cipherbook-1.1.0-build1.ipa",
+      "size": 366674,
+      "screenshotURLs": [],
+      "permissions": []
+    }
+  ],
+  "news": []
+}
