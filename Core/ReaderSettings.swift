@@ -70,14 +70,15 @@ final class ReaderSettings: ObservableObject {
     @Published var theme: ReaderTheme { didSet { defaults.set(theme.rawValue, forKey: "theme") } }
 
     init() {
+        let ud = UserDefaults.standard
         func d(_ key: String, _ fallback: Double) -> Double {
-            defaults.object(forKey: key) as? Double ?? fallback
+            ud.object(forKey: key) as? Double ?? fallback
         }
         func b(_ key: String, _ fallback: Bool) -> Bool {
-            defaults.object(forKey: key) as? Bool ?? fallback
+            ud.object(forKey: key) as? Bool ?? fallback
         }
-        mainFontID = defaults.string(forKey: "mainFontID") ?? FontChoice.systemDefault.id
-        subFontID  = defaults.string(forKey: "subFontID")  ?? "sys:Georgia"
+        mainFontID = ud.string(forKey: "mainFontID") ?? FontChoice.systemDefault.id
+        subFontID  = ud.string(forKey: "subFontID")  ?? "sys:Georgia"
         fontSize   = d("fontSize", 19)
         subScale   = d("subScale", 0.6)
         lineHeight = d("lineHeight", 1.6)
@@ -86,6 +87,6 @@ final class ReaderSettings: ObservableObject {
         justified  = b("justified", false)
         dualFont   = b("dualFont", false)
         swapped    = b("swapped", false)
-        theme      = ReaderTheme(rawValue: defaults.string(forKey: "theme") ?? "") ?? .light
+        theme      = ReaderTheme(rawValue: ud.string(forKey: "theme") ?? "") ?? .light
     }
 }
