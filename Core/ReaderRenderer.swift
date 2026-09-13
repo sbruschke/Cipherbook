@@ -103,6 +103,7 @@ enum ReaderRenderer {
     /// Punctuation is tinted by a class the `punctuationJS` pass installs, so the
     /// rule has to out-specify the blanket `body, body *` colour above — and the
     /// ruby rule below it, for punctuation that ends up inside an annotation.
+    @MainActor
     static func punctCSS(_ settings: ReaderSettings) -> String {
         guard settings.colorPunctuation else { return "" }
         let c = settings.punctuationColor
@@ -115,6 +116,7 @@ enum ReaderRenderer {
     /// the pitch is the space advance across and the line box down, anchored to
     /// the text origin so the body type lands on the grid. The cell size is
     /// measured in the page by `cbMeasureGrid` and arrives as a CSS variable.
+    @MainActor
     static func gridCSS(_ settings: ReaderSettings) -> String {
         guard settings.showGrid else { return "" }
         let c = settings.gridColor
