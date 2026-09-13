@@ -1,13 +1,23 @@
 name: release
 
+# Every push to main that touches shipping code publishes a new build: the
+# marketing version comes from project.yml, the build number from this
+# workflow's run number, so the LiveContainer feed can never fall behind main.
 on:
   push:
-    tags: ['v*']
+    branches: [main]
+    paths:
+      - 'App/**'
+      - 'Core/**'
+      - 'Resources/**'
+      - 'project.yml'
+      - '.github/workflows/release.yml'
+      - 'scripts/render-source-json.sh'
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to publish (e.g. 1.0.1)'
-        required: true
+        description: 'Version to publish (default: MARKETING_VERSION in project.yml)'
+        required: false
 
 jobs:
   release:
@@ -24,16 +34,14 @@ jobs:
         id: meta
         run: |
           set -euo pipefail
-          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            TAG="${GITHUB_REF#refs/tags/}"
-            VERSION="${TAG#v}"
-            BODY=$(git cat-file tag "$TAG" 2>/dev/null \
-              | python3 -c 'import sys; d=sys.stdin.read(); p=d.split("\n\n",1); sys.stdout.write(p[1].rstrip("\n") if len(p)>1 else "")' || true)
-            [[ -n "$BODY" ]] || BODY=$(git log -1 --format='%s' "$TAG")
-          else
-            VERSION="${{ github.event.inputs.version }}"
-            BODY=$(git log -1 --format='%s')
-          fi
+          VERSION="${{ github.event.inputs.version }}"
+          # project.yml is the single source of truth for the marketing version.
+          [[ -n "$VERSION" ]] || VERSION="$(./scripts/version.sh)"
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+            echo "error: bad version '$VERSION'" >&2; exit 1; }
+          BODY=$(git log -1 --format='%s')
+          # Monotonic across releases, which is what makes LiveContainer offer
+          # the update even when the marketing version has not moved.
           BUILD="${{ github.run_number }}"
           DESC_FILE="$RUNNER_TEMP/release-description.txt"
           printf '%s' "$BODY" > "$DESC_FILE"
@@ -114,6 +122,10 @@ jobs:
           git add releases source.json
           git commit -m "release: Cipherbook v${{ steps.meta.outputs.version }} (build ${{ steps.meta.outputs.build }})"
           git push origin HEAD:main
+          # Tags are an output of a release here, not its trigger.
+          TAG="v${{ steps.meta.outputs.version }}-build${{ steps.meta.outputs.build }}"
+          git tag -a "$TAG" -m "Cipherbook $TAG"
+          git push origin "$TAG"
 
       - name: Summary
         run: |

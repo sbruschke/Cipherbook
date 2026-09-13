@@ -1,8 +1,8 @@
 name: build-ipa
 
+# Compile check only. Pushes to main are built and published by release.yml,
+# so this does not also run there.
 on:
-  push:
-    branches: [master, main]
   pull_request:
   workflow_dispatch:
 
