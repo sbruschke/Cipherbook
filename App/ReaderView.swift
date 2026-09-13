@@ -63,7 +63,10 @@ struct ReaderScreen: View {
          String(settings.dualFont), String(settings.swapped),
          String(settings.forceSize), settings.theme.rawValue,
          settings.customBackground, settings.customForeground,
-         settings.customMuted, settings.customAccent].joined(separator: "|")
+         settings.customMuted, settings.customAccent,
+         String(settings.colorPunctuation), settings.punctuationColor,
+         String(settings.showGrid), settings.gridColor,
+         String(settings.gridDot)].joined(separator: "|")
     }
 
     var body: some View {

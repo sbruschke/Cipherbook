@@ -14,6 +14,7 @@ final class ReaderModel: NSObject, ObservableObject {
     var scrollFraction: Double = 0
     private var pendingRestore: Double?
     private var dualApplied = false
+    private var punctApplied = false
     private var settings: ReaderSettings
 
     init(doc: EPUBDocument, settings: ReaderSettings, stagedFonts: [FontChoice],
@@ -72,6 +73,7 @@ final class ReaderModel: NSObject, ObservableObject {
     func loadCurrentChapter(restoring fraction: Double? = nil) {
         guard doc.chapters.indices.contains(chapter) else { return }
         dualApplied = false
+        punctApplied = false
         pendingRestore = fraction
         let url = doc.chapters[chapter].url
         webView.loadFileURL(url, allowingReadAccessTo: doc.rootDir)
@@ -91,7 +93,11 @@ final class ReaderModel: NSObject, ObservableObject {
 
     /// Re-applies typography live; a dual-font switch-off needs a fresh document.
     func settingsChanged() {
-        if dualApplied && !settings.dualFont {
+        // Both a dual-font switch-off and turning it on over already-wrapped
+        // punctuation need a fresh document: the two passes only nest correctly
+        // when the ruby wrap runs first, which is the order the load path uses.
+        if (dualApplied && !settings.dualFont)
+            || (settings.dualFont && !dualApplied && punctApplied) {
             loadCurrentChapter(restoring: scrollFraction)
             return
         }
@@ -100,6 +106,15 @@ final class ReaderModel: NSObject, ObservableObject {
             dualApplied = true
             webView.evaluateJavaScript(ReaderRenderer.dualFontJS, completionHandler: nil)
         }
+        applyPunctuationIfNeeded()
+    }
+
+    /// The wrapping is one-way: switching the tint back off is handled by the
+    /// stylesheet, so the spans can stay where they are.
+    private func applyPunctuationIfNeeded() {
+        guard settings.colorPunctuation, !punctApplied else { return }
+        punctApplied = true
+        webView.evaluateJavaScript(ReaderRenderer.punctuationJS, completionHandler: nil)
     }
 
     private func applyStyle() {
@@ -116,6 +131,7 @@ extension ReaderModel: WKNavigationDelegate {
                 dualApplied = true
                 webView.evaluateJavaScript(ReaderRenderer.dualFontJS, completionHandler: nil)
             }
+            applyPunctuationIfNeeded()
             webView.evaluateJavaScript(ReaderRenderer.bridgeJS, completionHandler: nil)
             let restore = pendingRestore
             pendingRestore = nil

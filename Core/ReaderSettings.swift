@@ -71,6 +71,11 @@ final class ReaderSettings: ObservableObject {
     @Published var forceSize: Bool    { didSet { defaults.set(forceSize, forKey: "forceSize") } }
     @Published var dualFont: Bool     { didSet { defaults.set(dualFont, forKey: "dualFont") } }
     @Published var swapped: Bool      { didSet { defaults.set(swapped, forKey: "swapped") } }
+    @Published var colorPunctuation: Bool { didSet { defaults.set(colorPunctuation, forKey: "colorPunctuation") } }
+    @Published var punctuationColor: String { didSet { defaults.set(punctuationColor, forKey: "punctuationColor") } }
+    @Published var showGrid: Bool     { didSet { defaults.set(showGrid, forKey: "showGrid") } }
+    @Published var gridColor: String  { didSet { defaults.set(gridColor, forKey: "gridColor") } }
+    @Published var gridDot: Double    { didSet { defaults.set(gridDot, forKey: "gridDot") } }
     @Published var theme: ReaderTheme {
         didSet {
             defaults.set(theme.rawValue, forKey: "theme")
@@ -110,6 +115,13 @@ final class ReaderSettings: ObservableObject {
         forceSize  = b("forceSize", true)
         dualFont   = b("dualFont", false)
         swapped    = b("swapped", false)
+        colorPunctuation = b("colorPunctuation", false)
+        // The blue used for punctuation in the Red Rising print edition.
+        punctuationColor = ud.string(forKey: "punctuationColor") ?? "#000091"
+        showGrid  = b("showGrid", false)
+        // 0.30 tint on white, the print build's default grid gray.
+        gridColor = ud.string(forKey: "gridColor") ?? "#B3B3B3"
+        gridDot   = d("gridDot", 1.0)
         theme      = ReaderTheme(rawValue: ud.string(forKey: "theme") ?? "") ?? .light
         customBackground = ud.string(forKey: "customBackground") ?? "#101418"
         customForeground = ud.string(forKey: "customForeground") ?? "#e8e2d4"

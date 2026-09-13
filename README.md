@@ -8,6 +8,11 @@ directly underneath it (WebKit ruby annotations, positioned under the text).
 - Import your own `.ttf` / `.otf` fonts and switch fonts in two taps.
 - Main font + sub font, independent; swap them with one toggle.
 - Text size, line spacing, margins, letter spacing, justification, 4 themes.
+- Optional **punctuation tint**: every Unicode P/S character takes its own
+  colour, the way the print editions set punctuation in blue (`#000091`).
+- Optional **cell grid**: dots at every character-cell corner (a space wide, a
+  line tall), anchored so the body type lands on the grid, as in the print
+  build's `--grid`.
 - Chapter list from the EPUB 3 nav doc or EPUB 2 NCX; reading position is saved.
 
 ## Build
