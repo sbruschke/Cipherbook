@@ -48,6 +48,14 @@ struct ReaderSettingsView: View {
                 }
             }
 
+            Section {
+                NavigationLink {
+                    KeyboardSettingsView()
+                } label: {
+                    Label("Cipher keyboard", systemImage: "keyboard")
+                }
+            }
+
             Section("Layout") {
                 slider("Text size", value: $settings.fontSize, range: 10...90, step: 1,
                        format: { "\(Int($0)) pt" })

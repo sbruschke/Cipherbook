@@ -14,6 +14,23 @@ directly underneath it (WebKit ruby annotations, positioned under the text).
   line tall), anchored so the body type lands on the grid, as in the print
   build's `--grid`.
 - Chapter list from the EPUB 3 nav doc or EPUB 2 NCX; reading position is saved.
+- **Cipher keyboard** (Reading settings › Cipher keyboard): a system-wide
+  keyboard extension that types ordinary English — auto-capitalisation,
+  auto-correction and suggestions from the iOS English dictionary — but draws
+  its keys, and optionally its suggestions, in any Cipherbook font.
+
+### Keyboard install notes
+
+- Keyboards are app extensions, which **LiveContainer cannot register**.
+  Install Cipherbook directly with SideStore/AltStore and choose *Keep App
+  Extensions*; the extension uses one more App ID on a free account.
+- The app and keyboard share fonts through the App Group
+  `group.dev.dxshdw.cipherbook`. CI embeds it with an ad-hoc signature
+  (`Entitlements/`) because SideStore reads app groups from the binary, then
+  records the team-specific group it created under `ALTAppGroups` in each
+  bundle's Info.plist — `SharedKeyboard.groupID` reads that back.
+- Enable it in Settings › General › Keyboard › Keyboards › Add New Keyboard,
+  then turn on *Allow Full Access* so the keyboard can read the font file.
 
 ## Build
 

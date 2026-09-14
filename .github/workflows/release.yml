@@ -9,6 +9,8 @@ on:
     paths:
       - 'App/**'
       - 'Core/**'
+      - 'Keyboard/**'
+      - 'Entitlements/**'
       - 'Resources/**'
       - 'project.yml'
       - '.github/workflows/release.yml'
@@ -80,6 +82,17 @@ jobs:
             -IDEPackageSupportUseBuiltinSCM=YES \
             COMPILER_INDEX_STORE_ENABLE=NO \
             build
+
+      - name: Embed entitlements
+        run: |
+          set -euo pipefail
+          # SideStore takes App Groups from the code signature when it re-signs;
+          # without them the keyboard can't read fonts from the shared container.
+          APP=build/Build/Products/Release-iphoneos/Cipherbook.app
+          codesign -f -s - --entitlements Entitlements/CipherKeys.entitlements "$APP/PlugIns/CipherKeys.appex"
+          codesign -f -s - --entitlements Entitlements/Cipherbook.entitlements "$APP"
+          codesign -d --entitlements - "$APP/PlugIns/CipherKeys.appex"
+          codesign -d --entitlements - "$APP"
 
       - name: Package .ipa
         id: package
