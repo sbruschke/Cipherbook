@@ -10,12 +10,12 @@
       "subtitle": "Dual-font EPUB reader",
       "localizedDescription": "An EPUB reader that renders every word in two typefaces at once — a main font on the line and a smaller second font directly underneath — for learning a cipher or conscript. Import your own fonts, switch them in two taps, and build custom colour themes.",
       "tintColor": "#7FB28A",
-      "version": "1.2.0",
-      "buildVersion": "2",
-      "versionDate": "2026-09-13T11:14:23Z",
-      "versionDescription": "Publish the source feed from main, and bump to 1.2.0",
-      "downloadURL": "https://raw.githubusercontent.com/sbruschke/Cipherbook/main/releases/Cipherbook-1.2.0-build2.ipa",
-      "size": 391197,
+      "version": "1.3.0",
+      "buildVersion": "3",
+      "versionDate": "2026-09-14T04:22:40Z",
+      "versionDescription": "Merge pull request #1 from sbruschke/custom-keyboard",
+      "downloadURL": "https://raw.githubusercontent.com/sbruschke/Cipherbook/main/releases/Cipherbook-1.3.0-build3.ipa",
+      "size": 497325,
       "screenshotURLs": [],
       "permissions": []
     }
