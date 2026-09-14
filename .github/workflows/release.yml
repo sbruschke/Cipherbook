@@ -119,6 +119,7 @@ jobs:
           cat /tmp/source.json
 
       - name: Commit release feed to main
+        id: commit
         env:
           IPA_NAME: ${{ steps.meta.outputs.ipa_name }}
           IPA_PATH: ${{ steps.package.outputs.ipa_path }}
@@ -139,6 +140,21 @@ jobs:
           TAG="v${{ steps.meta.outputs.version }}-build${{ steps.meta.outputs.build }}"
           git tag -a "$TAG" -m "Cipherbook $TAG"
           git push origin "$TAG"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub Release (ipa.dxshdw.dev hub)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.commit.outputs.tag }}
+          IPA_PATH: ${{ steps.package.outputs.ipa_path }}
+          DESCRIPTION_FILE: ${{ steps.meta.outputs.description_file }}
+        run: |
+          set -euo pipefail
+          gh release create "$TAG" "$IPA_PATH" \
+            --repo "${{ github.repository }}" \
+            --title "Cipherbook $TAG" \
+            --notes-file "$DESCRIPTION_FILE" \
+            --verify-tag
 
       - name: Summary
         run: |
