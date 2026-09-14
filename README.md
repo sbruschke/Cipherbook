@@ -43,8 +43,8 @@ xcodebuild -scheme Cipherbook -sdk iphoneos CODE_SIGNING_ALLOWED=NO build
 
 - `build-ipa.yml` — compile check on pull requests and manual dispatch.
 - `release.yml` — **every push to main that touches `App/`, `Core/`,
-  `Resources/` or `project.yml`** builds, packages, and commits the IPA plus a
-  refreshed `source.json`, then tags the release. The LiveContainer feed
+  `Resources/` or `project.yml`** builds, packages, and publishes the IPA as a
+  GitHub Release asset, then tags the release. The LiveContainer feed
   therefore never lags behind main.
 
 ## Versioning
@@ -64,4 +64,14 @@ number did not increase is invisible to the installed app.
 Bump the marketing version for user-visible features; leave it alone for fixes
 and let the build number carry them.
 
-Source feed: `https://raw.githubusercontent.com/sbruschke/Cipherbook/main/source.json`
+## Install feed
+
+The LiveContainer/AltStore source feed moved to
+**`https://ipa.dxshdw.dev/source.json`**, served by
+[ipa-hub](https://github.com/sbruschke/ipa-hub) from GitHub Release assets.
+`release.yml` no longer commits an IPA or `source.json` back to this repo —
+it publishes a GitHub Release, and ipa-hub's desktop timer syncs from there.
+
+The `source.json` and `releases/*.ipa` files still present in this repo's
+history are stale leftovers from the old in-repo feed and are no longer
+updated; do not add this repo's `source.json` as a LiveContainer source.

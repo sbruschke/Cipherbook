@@ -14,7 +14,6 @@ on:
       - 'Resources/**'
       - 'project.yml'
       - '.github/workflows/release.yml'
-      - 'scripts/render-source-json.sh'
   workflow_dispatch:
     inputs:
       version:
@@ -103,40 +102,12 @@ jobs:
           (cd build && zip -qr "${{ steps.meta.outputs.ipa_name }}" Payload)
           echo "ipa_path=build/${{ steps.meta.outputs.ipa_name }}" >> "$GITHUB_OUTPUT"
 
-      - name: Render source.json
-        env:
-          DESCRIPTION_FILE: ${{ steps.meta.outputs.description_file }}
-          IPA_PATH: ${{ steps.package.outputs.ipa_path }}
-        run: |
-          set -euo pipefail
-          ./scripts/render-source-json.sh \
-            "${{ steps.meta.outputs.version }}" \
-            "${{ steps.meta.outputs.build }}" \
-            "${{ steps.meta.outputs.date }}" \
-            "$(cat "$DESCRIPTION_FILE")" \
-            "$IPA_PATH" > /tmp/source.json
-          jq empty /tmp/source.json
-          cat /tmp/source.json
-
-      - name: Commit release feed to main
+      - name: Tag release
         id: commit
-        env:
-          IPA_NAME: ${{ steps.meta.outputs.ipa_name }}
-          IPA_PATH: ${{ steps.package.outputs.ipa_path }}
         run: |
           set -euo pipefail
           git config user.name "Cipherbook CI"
           git config user.email "ci@users.noreply.github.com"
-          mkdir -p releases
-          cp "$IPA_PATH" "releases/${IPA_NAME}"
-          cp /tmp/source.json source.json
-          # Keep only the three most recent IPAs in-repo.
-          ls -1t releases/*.ipa | tail -n +4 | xargs -r git rm -q --ignore-unmatch || true
-          ls -1t releases/*.ipa | tail -n +4 | xargs -r rm -f || true
-          git add releases source.json
-          git commit -m "release: Cipherbook v${{ steps.meta.outputs.version }} (build ${{ steps.meta.outputs.build }})"
-          git push origin HEAD:main
-          # Tags are an output of a release here, not its trigger.
           TAG="v${{ steps.meta.outputs.version }}-build${{ steps.meta.outputs.build }}"
           git tag -a "$TAG" -m "Cipherbook $TAG"
           git push origin "$TAG"
@@ -162,5 +133,5 @@ jobs:
             echo "### Cipherbook v${{ steps.meta.outputs.version }} (build ${{ steps.meta.outputs.build }})"
             echo ""
             echo "LiveContainer source URL:"
-            echo '`https://raw.githubusercontent.com/sbruschke/Cipherbook/main/source.json`'
+            echo '`https://ipa.dxshdw.dev/source.json`'
           } >> "$GITHUB_STEP_SUMMARY"
