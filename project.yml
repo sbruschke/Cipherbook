@@ -29,11 +29,12 @@ targets:
       - path: Core
     dependencies:
       - package: ZIPFoundation
+      - target: CipherKeys
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.dxshdw.cipherbook
         PRODUCT_NAME: Cipherbook
-        MARKETING_VERSION: "1.2.0"
+        MARKETING_VERSION: "1.3.0"
         CURRENT_PROJECT_VERSION: "0"
         CODE_SIGNING_ALLOWED: NO
         CODE_SIGNING_REQUIRED: NO
@@ -47,3 +48,28 @@ targets:
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+
+  # Custom keyboard: English QWERTY whose keys are drawn in a Cipherbook font.
+  # Entitlements (the shared App Group) are embedded by CI with an ad-hoc
+  # signature, since SideStore reads them from the binary when it re-signs.
+  CipherKeys:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: Keyboard
+        excludes:
+          - "Info.plist"
+      - path: Core/SharedKeyboard.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.dxshdw.cipherbook.keyboard
+        PRODUCT_NAME: CipherKeys
+        MARKETING_VERSION: "1.3.0"
+        CURRENT_PROJECT_VERSION: "0"
+        INFOPLIST_FILE: Keyboard/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        APPLICATION_EXTENSION_API_ONLY: YES
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGN_IDENTITY: ""

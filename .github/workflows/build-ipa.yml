@@ -60,6 +60,15 @@ jobs:
             exit $rc
           fi
 
+      - name: Embed entitlements
+        run: |
+          set -euo pipefail
+          # Mirrors release.yml: SideStore reads App Groups from the signature.
+          APP=build/Build/Products/Release-iphoneos/Cipherbook.app
+          codesign -f -s - --entitlements Entitlements/CipherKeys.entitlements "$APP/PlugIns/CipherKeys.appex"
+          codesign -f -s - --entitlements Entitlements/Cipherbook.entitlements "$APP"
+          codesign -d --entitlements - "$APP/PlugIns/CipherKeys.appex"
+
       - name: Package .ipa
         run: |
           mkdir -p build/Payload

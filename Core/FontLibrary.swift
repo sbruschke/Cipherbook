@@ -59,7 +59,7 @@ final class FontLibrary: ObservableObject {
             .filter { ["ttf", "otf", "ttc", "woff", "woff2"].contains($0.pathExtension.lowercased()) }
             .sorted { $0.lastPathComponent.localizedCaseInsensitiveCompare($1.lastPathComponent) == .orderedAscending }
             .map { url in
-                let uiName = FontLibrary.register(url)
+                let uiName = SharedKeyboard.registerFont(at: url)
                 return FontChoice(id: "custom:\(url.lastPathComponent)",
                                   display: uiName ?? url.deletingPathExtension().lastPathComponent,
                                   cssFamily: "\"\(FontLibrary.cssFamilyName(for: url))\"",
@@ -72,15 +72,6 @@ final class FontLibrary: ObservableObject {
     nonisolated static func cssFamilyName(for url: URL) -> String {
         "cb_" + url.lastPathComponent
             .replacingOccurrences(of: "[^A-Za-z0-9]", with: "_", options: .regularExpression)
-    }
-
-    /// Registers with CoreText so the font can also be previewed in native UI.
-    @discardableResult
-    nonisolated private static func register(_ url: URL) -> String? {
-        CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
-        guard let descriptors = CTFontManagerCreateFontDescriptorsFromURL(url as CFURL)
-                as? [CTFontDescriptor], let first = descriptors.first else { return nil }
-        return CTFontDescriptorCopyAttribute(first, kCTFontNameAttribute) as? String
     }
 
     @discardableResult
