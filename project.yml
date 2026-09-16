@@ -33,11 +33,18 @@ targets:
     dependencies:
       - package: ZIPFoundation
       - target: CipherKeys
+    # Merged with the generated Info.plist; only what build settings can't express.
+    info:
+      path: Config/Cipherbook-Info.plist
+      properties:
+        CFBundleURLTypes:
+          - CFBundleURLName: dev.dxshdw.cipherbook
+            CFBundleURLSchemes: [cipherbook]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.dxshdw.cipherbook
         PRODUCT_NAME: Cipherbook
-        MARKETING_VERSION: "1.7.1"
+        MARKETING_VERSION: "1.8.0"
         CURRENT_PROJECT_VERSION: "0"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGNING_ALLOWED: NO
@@ -75,7 +82,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.dxshdw.cipherbook.keyboard
         PRODUCT_NAME: CipherKeys
-        MARKETING_VERSION: "1.7.1"
+        MARKETING_VERSION: "1.8.0"
         CURRENT_PROJECT_VERSION: "0"
         INFOPLIST_FILE: Keyboard/Info.plist
         GENERATE_INFOPLIST_FILE: NO
