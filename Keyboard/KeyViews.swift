@@ -1,4 +1,5 @@
 import UIKit
+import UIKit.UIGestureRecognizerSubclass
 
 enum KeyPlane { case letters, numbers, symbols }
 
@@ -218,8 +219,105 @@ final class KeyPopup: UIView {
     }
 }
 
+/// Recognises a finger dragged across the letter keys.
+///
+/// It stays `.possible` while the touch is still on the key it started on, so taps —
+/// sloppy ones included — reach the key as before; it begins only once the finger
+/// leaves that key, which cancels the key's own touch.
+final class SwipeGestureRecognizer: UIGestureRecognizer {
+    /// Frame of the letter key a touch starts on, or nil to refuse the gesture.
+    var startKeyFrame: ((CGPoint) -> CGRect?)?
+    private(set) var path: [CGPoint] = []
+    private var startFrame = CGRect.null
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+        // A second finger means two-thumb typing, not a swipe.
+        guard state == .possible, path.isEmpty, touches.count == 1,
+              (event.allTouches?.count ?? 1) == 1,
+              let touch = touches.first, let view,
+              let frame = startKeyFrame?(touch.location(in: view)) else {
+            if state == .possible { state = .failed }
+            return
+        }
+        startFrame = frame.insetBy(dx: -frame.width * 0.15, dy: -frame.height * 0.1)
+        path = [touch.location(in: view)]
+    }
+
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
+        guard let touch = touches.first, let view else { return }
+        let point = touch.location(in: view)
+        path.append(point)
+        switch state {
+        case .possible where !startFrame.contains(point): state = .began
+        case .began, .changed: state = .changed
+        default: break
+        }
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
+        if let touch = touches.first, let view { path.append(touch.location(in: view)) }
+        state = state == .began || state == .changed ? .ended : .failed
+    }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) {
+        state = state == .possible ? .failed : .cancelled
+    }
+
+    override func reset() {
+        super.reset()
+        path = []
+        startFrame = .null
+    }
+}
+
+/// The fading line drawn under the finger while swiping.
+final class SwipeTrail: UIView {
+    private let line = CAShapeLayer()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isUserInteractionEnabled = false
+        line.fillColor = nil
+        line.lineWidth = 7
+        line.lineCap = .round
+        line.lineJoin = .round
+        layer.addSublayer(line)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    func draw(_ points: [CGPoint], color: UIColor) {
+        line.removeAllAnimations()
+        line.opacity = 1
+        line.strokeColor = color.withAlphaComponent(0.55).cgColor
+        let path = UIBezierPath()
+        if let first = points.first {
+            path.move(to: first)
+            points.dropFirst().forEach { path.addLine(to: $0) }
+        }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        line.path = path.cgPath
+        CATransaction.commit()
+    }
+
+    func fade() {
+        CATransaction.begin()
+        CATransaction.setCompletionBlock { [line] in line.path = nil }
+        let fade = CABasicAnimation(keyPath: "opacity")
+        fade.fromValue = 1
+        fade.toValue = 0
+        fade.duration = 0.2
+        line.opacity = 0
+        line.add(fade, forKey: "fade")
+        CATransaction.commit()
+    }
+}
+
 struct Suggestion: Equatable {
-    enum Kind { case literal, autocorrect, candidate }
+    /// `prediction`: a next word, inserted rather than replacing anything.
+    /// `swiped`: the word a swipe just inserted, shown so its alternatives read as such.
+    enum Kind { case literal, autocorrect, candidate, prediction, swiped }
     let text: String
     let kind: Kind
 }
@@ -275,7 +373,7 @@ final class SuggestionBar: UIView {
             button.setAttributedTitle(NSAttributedString(string: text, attributes: [
                 .font: font, .foregroundColor: ink,
             ]), for: .normal)
-            button.backgroundColor = item.kind == .autocorrect
+            button.backgroundColor = item.kind == .autocorrect || item.kind == .swiped
                 ? (dark ? UIColor(white: 1, alpha: 0.18) : UIColor(white: 1, alpha: 0.85))
                 : .clear
         }

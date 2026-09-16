@@ -15,11 +15,15 @@ final class KeyboardViewController: UIInputViewController {
     private var lastSpaceTap = Date.distantPast
     /// Set right after an autocorrection so the next backspace undoes it.
     private var revert: (inserted: String, original: String)?
+    /// The word the last swipe inserted and the runners-up, until the next edit.
+    private var swiped: (word: String, alternatives: [String])?
 
     private let bar = SuggestionBar()
     private let keyboard = KeyboardView()
     private let popup = KeyPopup()
     private let engine = SuggestionEngine()
+    private let swipe = SwipeGestureRecognizer()
+    private let trail = SwipeTrail()
     private var heightConstraint: NSLayoutConstraint!
     private var deleteDelay: Timer?
     private var deleteRepeat: Timer?
@@ -36,6 +40,14 @@ final class KeyboardViewController: UIInputViewController {
         view.addSubview(bar)
         view.addSubview(keyboard)
         bar.onSelect = { [weak self] in self?.apply($0) }
+
+        trail.frame = keyboard.bounds
+        trail.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        keyboard.addSubview(trail)
+        swipe.delaysTouchesEnded = false
+        swipe.startKeyFrame = { [weak self] in self?.swipeStartFrame(at: $0) }
+        swipe.addTarget(self, action: #selector(handleSwipe(_:)))
+        keyboard.addGestureRecognizer(swipe)
 
         heightConstraint = view.heightAnchor.constraint(equalToConstant: 262)
         heightConstraint.priority = UILayoutPriority(999)
@@ -69,6 +81,13 @@ final class KeyboardViewController: UIInputViewController {
         rebuildKeys()
         refreshAutoShift()
         refreshSuggestions()
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        if config.swipeTyping {
+            DispatchQueue.main.async { [engine] in engine.prepareSwipe() }
+        }
     }
 
     override func viewWillLayoutSubviews() {
@@ -134,6 +153,7 @@ final class KeyboardViewController: UIInputViewController {
     private func rebuildKeys() {
         let rows = KeyLayout.rows(for: plane, showGlobe: needsInputModeSwitchKey)
         keyboard.setRows(rows.map { $0.map(makeKey) })
+        keyboard.bringSubviewToFront(trail)
         updateKeyFaces()
     }
 
@@ -285,6 +305,14 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     @objc private func deleteOnce() {
+        if let s = swiped, (proxy.documentContextBeforeInput ?? "").hasSuffix(s.word) {
+            for _ in 0..<s.word.count { proxy.deleteBackward() }
+            swiped = nil
+            revert = nil
+            refreshSuggestions()
+            return
+        }
+        swiped = nil
         if let r = revert, (proxy.documentContextBeforeInput ?? "").hasSuffix(r.inserted) {
             replaceTrailing(count: r.inserted.count, with: r.original)
         } else {
@@ -298,6 +326,7 @@ final class KeyboardViewController: UIInputViewController {
 
     private func typeCharacter(_ c: String) {
         revert = nil
+        swiped = nil
         proxy.insertText(shift == .off ? c : c.uppercased())
         if shift == .on {
             shift = .off
@@ -341,6 +370,7 @@ final class KeyboardViewController: UIInputViewController {
                 proxy.insertText(" ")
             }
         }
+        swiped = nil
         if plane != .letters {
             plane = .letters
             rebuildKeys()
@@ -350,17 +380,44 @@ final class KeyboardViewController: UIInputViewController {
 
     /// Replaces the word before the caret with the engine's correction.
     private func autocorrectCurrentWord(trailing: String) -> Bool {
+        let before = proxy.documentContextBeforeInput
         guard config.autocorrect, (proxy.autocorrectionType ?? .default) != .no,
-              let word = engine.currentWord(in: proxy.documentContextBeforeInput),
+              let word = engine.currentWord(in: before),
+              // A swiped word came from the word list; don't second-guess it.
+              swiped.map({ !(before ?? "").hasSuffix($0.word) }) ?? true,
               !(proxy.documentContextAfterInput?.first?.isLetter ?? false),
-              let fix = engine.suggest(for: word).correction, fix != word else { return false }
+              let fix = engine.suggest(for: word, context: engine.context(before: before, currentWord: word)).correction,
+              fix != word else { return false }
         replaceTrailing(count: word.count, with: fix + trailing)
         revert = (inserted: fix + trailing, original: word)
         return true
     }
 
     private func apply(_ suggestion: Suggestion) {
-        guard let word = engine.currentWord(in: proxy.documentContextBeforeInput) else { return }
+        let before = proxy.documentContextBeforeInput ?? ""
+        switch suggestion.kind {
+        case .prediction:
+            let gap = before.last.map { !$0.isWhitespace } ?? false
+            proxy.insertText((gap ? " " : "") + suggestion.text + " ")
+            revert = nil
+            swiped = nil
+            afterEdit()
+            return
+        case .swiped:
+            swiped = nil
+            refreshSuggestions()
+            return
+        case .candidate where swiped.map({ before.hasSuffix($0.word) }) ?? false:
+            let old = swiped!.word
+            replaceTrailing(count: old.count, with: suggestion.text)
+            swiped = (suggestion.text, [old] + swiped!.alternatives.filter { $0 != suggestion.text })
+            revert = nil
+            afterEdit()
+            return
+        default:
+            break
+        }
+        guard let word = engine.currentWord(in: before) else { return }
         if suggestion.kind == .literal { engine.learn(word) }
         replaceTrailing(count: word.count, with: suggestion.text + " ")
         revert = nil
@@ -409,11 +466,30 @@ final class KeyboardViewController: UIInputViewController {
     private func refreshSuggestions() {
         let dark = isDark
         let font = config.cipherSuggestions ? glyphFont(18 * config.glyphScale) : .systemFont(ofSize: 17)
-        guard let word = engine.currentWord(in: proxy.documentContextBeforeInput) else {
-            bar.show([], font: font, dark: dark, hint: hint)
+        let before = proxy.documentContextBeforeInput ?? ""
+
+        if let s = swiped {
+            if before.hasSuffix(s.word) {
+                let items = [Suggestion(text: s.word, kind: .swiped)]
+                    + s.alternatives.map { Suggestion(text: $0, kind: .candidate) }
+                bar.show(items, font: font, dark: dark, hint: nil)
+                return
+            }
+            swiped = nil
+        }
+
+        guard let word = engine.currentWord(in: before) else {
+            // Between words: offer what usually comes next, unless there's a setup hint to show.
+            let atBoundary = before.last.map { $0.isWhitespace } ?? true
+            let predictions = hint == nil && atBoundary
+                ? engine.nextWords(context: engine.context(before: before, currentWord: nil),
+                                   capitalized: shift != .off)
+                : []
+            bar.show(predictions.map { Suggestion(text: $0, kind: .prediction) },
+                     font: font, dark: dark, hint: hint)
             return
         }
-        let result = engine.suggest(for: word)
+        let result = engine.suggest(for: word, context: engine.context(before: before, currentWord: word))
         var items = [Suggestion(text: word, kind: .literal)]
         if let fix = result.correction, fix != word {
             let autocorrects = config.autocorrect && (proxy.autocorrectionType ?? .default) != .no
@@ -423,5 +499,61 @@ final class KeyboardViewController: UIInputViewController {
             items.append(Suggestion(text: option, kind: .candidate))
         }
         bar.show(items, font: font, dark: dark, hint: nil)
+    }
+
+    // MARK: Swipe typing
+
+    /// Where a swipe may start: any letter key, when swiping is on and usable.
+    private func swipeStartFrame(at point: CGPoint) -> CGRect? {
+        guard config.swipeTyping, plane == .letters, engine.canSwipe else { return nil }
+        return keyboard.allKeys.first { $0.spec.isCharacter && $0.frame.contains(point) }?.frame
+    }
+
+    @objc private func handleSwipe(_ gesture: SwipeGestureRecognizer) {
+        let ink: UIColor = isDark ? .white : .systemBlue
+        switch gesture.state {
+        case .began:
+            hidePopup()
+            trail.draw(gesture.path, color: ink)
+        case .changed:
+            trail.draw(gesture.path, color: ink)
+        case .ended:
+            trail.fade()
+            commitSwipe(gesture.path)
+        default:
+            trail.fade()
+        }
+    }
+
+    private func commitSwipe(_ path: [CGPoint]) {
+        var centres: [Character: CGPoint] = [:]
+        var keyWidth: CGFloat = 0
+        for key in keyboard.allKeys {
+            guard case .character(let c) = key.spec.action, let letter = c.first else { continue }
+            centres[letter] = CGPoint(x: key.frame.midX, y: key.frame.midY)
+            keyWidth = key.frame.width
+        }
+        let before = proxy.documentContextBeforeInput ?? ""
+        let words = engine.swipe(path: path, keys: centres, keyWidth: keyWidth,
+                                 context: engine.context(before: before, currentWord: nil))
+        guard !words.isEmpty else { return }
+
+        let styled = words.map { word -> String in
+            switch shift {
+            case .off: return word
+            case .on: return engine.capitalize(word)
+            case .locked: return word.uppercased()
+            }
+        }
+        // Swiped words are separated automatically, except after an opening bracket or quote.
+        let needsSpace = before.last.map { !$0.isWhitespace && !"([{\"\u{201C}\u{2018}/-".contains($0) } ?? false
+        proxy.insertText((needsSpace ? " " : "") + styled[0])
+        revert = nil
+        swiped = (styled[0], Array(styled.dropFirst()))
+        if shift == .on {
+            shift = .off
+            updateKeyFaces()
+        }
+        afterEdit()
     }
 }

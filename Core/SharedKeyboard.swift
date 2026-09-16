@@ -71,6 +71,7 @@ struct KeyboardConfig {
     /// Draw the word keys — space, return and the ABC/123/#+= mode keys — in the cipher font too.
     var cipherFunctionKeys = true
     var autocorrect = true
+    var swipeTyping = true
     var glyphScale = 1.0
     /// False until the app has written a config the keyboard can see.
     var configured = false
@@ -81,6 +82,7 @@ struct KeyboardConfig {
         static let cipherSuggestions = "kb.cipherSuggestions"
         static let cipherFunctionKeys = "kb.cipherFunctionKeys"
         static let autocorrect = "kb.autocorrect"
+        static let swipeTyping = "kb.swipeTyping"
         static let glyphScale = "kb.glyphScale"
         static let configured = "kb.configured"
     }
@@ -93,6 +95,7 @@ struct KeyboardConfig {
         config.cipherSuggestions = d.object(forKey: Key.cipherSuggestions) as? Bool ?? true
         config.cipherFunctionKeys = d.object(forKey: Key.cipherFunctionKeys) as? Bool ?? true
         config.autocorrect = d.object(forKey: Key.autocorrect) as? Bool ?? true
+        config.swipeTyping = d.object(forKey: Key.swipeTyping) as? Bool ?? true
         config.glyphScale = d.object(forKey: Key.glyphScale) as? Double ?? 1.0
         config.configured = d.bool(forKey: Key.configured)
         return config
@@ -105,6 +108,7 @@ struct KeyboardConfig {
         d.set(cipherSuggestions, forKey: Key.cipherSuggestions)
         d.set(cipherFunctionKeys, forKey: Key.cipherFunctionKeys)
         d.set(autocorrect, forKey: Key.autocorrect)
+        d.set(swipeTyping, forKey: Key.swipeTyping)
         d.set(glyphScale, forKey: Key.glyphScale)
         d.set(true, forKey: Key.configured)
     }
