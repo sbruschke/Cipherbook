@@ -68,7 +68,7 @@ struct KeyboardConfig {
     /// `UIFont(name:)` name, for built-in fonts. Nil with no file means System.
     var fontName: String?
     var cipherSuggestions = true
-    /// Draw the "space" and return-key words in the cipher font too.
+    /// Draw the word keys — space, return and the ABC/123/#+= mode keys — in the cipher font too.
     var cipherFunctionKeys = true
     var autocorrect = true
     var glyphScale = 1.0

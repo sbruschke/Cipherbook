@@ -75,7 +75,7 @@ struct KeyboardSettingsView: View {
                     Slider(value: $keyboard.glyphScale, in: 0.6...1.6, step: 0.05)
                 }
                 Toggle("Suggestions in this font", isOn: $keyboard.cipherSuggestions)
-                Toggle("Space and return in this font", isOn: $keyboard.cipherFunctionKeys)
+                Toggle("Function keys in this font", isOn: $keyboard.cipherFunctionKeys)
                 Toggle("Auto-correction", isOn: $keyboard.autocorrect)
             } header: {
                 Text("Keyboard")

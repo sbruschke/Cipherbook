@@ -168,7 +168,7 @@ final class KeyboardViewController: UIInputViewController {
         let labelFont = UIFont.systemFont(ofSize: 16)
         let glyphSize = min(max(keyboard.rowHeight * 0.5, 18), 26) * config.glyphScale
         let glyph = glyphFont(glyphSize)
-        // "space"/"return" are whole words, so they need the label size rather than the
+        // "space"/"return"/"ABC" are whole words, so they need the label size rather than the
         // single-glyph size, or they shrink to fit and end up smaller than the letter keys.
         let wordFont = config.cipherFunctionKeys ? glyphFont(labelFont.pointSize) : labelFont
 
@@ -189,7 +189,7 @@ final class KeyboardViewController: UIInputViewController {
                 key.setColors(normal: functionKey, pressed: letterKey)
             case .plane(let target):
                 let title = target == .letters ? "ABC" : (target == .numbers ? "123" : "#+=")
-                key.setTitle(title, font: labelFont, color: ink)
+                key.setTitle(title, font: wordFont, color: ink)
                 key.setColors(normal: functionKey, pressed: letterKey)
             case .space:
                 key.setTitle("space", font: wordFont, color: ink)
