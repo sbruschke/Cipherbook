@@ -54,6 +54,13 @@ LAZY_CONTRACTIONS = {
     "youd": "you'd", "theyd": "they'd", "itll": "it'll", "thatll": "that'll",
     "mustnt": "mustn't", "neednt": "needn't",
 }
+# Norvig's `<S>` rows are not sentence starts in any useful sense ("and", "of"), so the
+# sentence-start row is this list instead, ranked by word frequency.
+SENTENCE_STARTERS = [
+    "i", "the", "thanks", "hi", "it", "that", "what", "how", "yes", "no", "we", "you",
+    "so", "hey", "just", "ok", "i'm", "my", "this", "can", "is", "do", "when", "if",
+    "there", "they", "he", "she", "and", "but", "sorry", "good", "please", "let's",
+]
 # Tokens the bigram corpus splits or spells without the apostrophe.
 BIGRAM_ALIASES = {**LAZY_CONTRACTIONS, "cant": "can't", "wont": "won't"}
 
@@ -104,6 +111,11 @@ def build_bigrams(vocab: dict[str, float]) -> dict[str, list[tuple[str, float]]]
         firsts[a] += int(count)
 
     table = {}
+    rows.pop("<S>", None)
+    starters = [w for w in SENTENCE_STARTERS if w in vocab]
+    top = max(vocab[w] for w in starters)
+    table["<S>"] = sorted(((w, vocab[w] - top) for w in starters), key=lambda kv: kv[1],
+                          reverse=True)[:FOLLOWERS_PER_WORD]
     for a, followers in rows.items():
         # Prefer the corpus unigram count as the denominator; the bigram file is a
         # truncated sample, so summing it would overstate every conditional.
