@@ -4,3 +4,4 @@ build/
 .DS_Store
 scripts/lexicon-src/
 Packages/KeyboardCore/.build/
+scripts/emoji-src/
