@@ -68,6 +68,8 @@ struct KeyboardConfig {
     /// `UIFont(name:)` name, for built-in fonts. Nil with no file means System.
     var fontName: String?
     var cipherSuggestions = true
+    /// Draw the "space" and return-key words in the cipher font too.
+    var cipherFunctionKeys = true
     var autocorrect = true
     var glyphScale = 1.0
     /// False until the app has written a config the keyboard can see.
@@ -77,6 +79,7 @@ struct KeyboardConfig {
         static let fontFile = "kb.fontFile"
         static let fontName = "kb.fontName"
         static let cipherSuggestions = "kb.cipherSuggestions"
+        static let cipherFunctionKeys = "kb.cipherFunctionKeys"
         static let autocorrect = "kb.autocorrect"
         static let glyphScale = "kb.glyphScale"
         static let configured = "kb.configured"
@@ -88,6 +91,7 @@ struct KeyboardConfig {
         config.fontFile = d.string(forKey: Key.fontFile)
         config.fontName = d.string(forKey: Key.fontName)
         config.cipherSuggestions = d.object(forKey: Key.cipherSuggestions) as? Bool ?? true
+        config.cipherFunctionKeys = d.object(forKey: Key.cipherFunctionKeys) as? Bool ?? true
         config.autocorrect = d.object(forKey: Key.autocorrect) as? Bool ?? true
         config.glyphScale = d.object(forKey: Key.glyphScale) as? Double ?? 1.0
         config.configured = d.bool(forKey: Key.configured)
@@ -99,6 +103,7 @@ struct KeyboardConfig {
         d.set(fontFile, forKey: Key.fontFile)
         d.set(fontName, forKey: Key.fontName)
         d.set(cipherSuggestions, forKey: Key.cipherSuggestions)
+        d.set(cipherFunctionKeys, forKey: Key.cipherFunctionKeys)
         d.set(autocorrect, forKey: Key.autocorrect)
         d.set(glyphScale, forKey: Key.glyphScale)
         d.set(true, forKey: Key.configured)

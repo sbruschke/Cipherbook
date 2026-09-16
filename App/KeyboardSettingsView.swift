@@ -8,6 +8,7 @@ final class KeyboardSettings: ObservableObject {
         didSet { UserDefaults.standard.set(fontID, forKey: "keyboardFontID") }
     }
     @Published var cipherSuggestions: Bool
+    @Published var cipherFunctionKeys: Bool
     @Published var autocorrect: Bool
     @Published var glyphScale: Double
     @Published private(set) var sharedStorageReady = SharedKeyboard.containerURL != nil
@@ -19,6 +20,7 @@ final class KeyboardSettings: ObservableObject {
             ?? ud.string(forKey: "mainFontID")
             ?? FontChoice.systemDefault.id
         cipherSuggestions = saved.cipherSuggestions
+        cipherFunctionKeys = saved.cipherFunctionKeys
         autocorrect = saved.autocorrect
         glyphScale = saved.glyphScale
     }
@@ -28,6 +30,7 @@ final class KeyboardSettings: ObservableObject {
         var config = KeyboardConfig()
         config.fontName = choice.uiName
         config.cipherSuggestions = cipherSuggestions
+        config.cipherFunctionKeys = cipherFunctionKeys
         config.autocorrect = autocorrect
         config.glyphScale = glyphScale
         if let source = choice.fileURL {
@@ -72,6 +75,7 @@ struct KeyboardSettingsView: View {
                     Slider(value: $keyboard.glyphScale, in: 0.6...1.6, step: 0.05)
                 }
                 Toggle("Suggestions in this font", isOn: $keyboard.cipherSuggestions)
+                Toggle("Space and return in this font", isOn: $keyboard.cipherFunctionKeys)
                 Toggle("Auto-correction", isOn: $keyboard.autocorrect)
             } header: {
                 Text("Keyboard")
@@ -107,6 +111,7 @@ struct KeyboardSettingsView: View {
         .onAppear { keyboard.sync(using: fonts) }
         .onChange(of: keyboard.fontID) { _ in keyboard.sync(using: fonts) }
         .onChange(of: keyboard.cipherSuggestions) { _ in keyboard.sync(using: fonts) }
+        .onChange(of: keyboard.cipherFunctionKeys) { _ in keyboard.sync(using: fonts) }
         .onChange(of: keyboard.autocorrect) { _ in keyboard.sync(using: fonts) }
         .onChange(of: keyboard.glyphScale) { _ in keyboard.sync(using: fonts) }
     }
