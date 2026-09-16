@@ -73,6 +73,10 @@ final class ReaderSettings: ObservableObject {
     @Published var swapped: Bool      { didSet { defaults.set(swapped, forKey: "swapped") } }
     @Published var colorPunctuation: Bool { didSet { defaults.set(colorPunctuation, forKey: "colorPunctuation") } }
     @Published var punctuationColor: String { didSet { defaults.set(punctuationColor, forKey: "punctuationColor") } }
+    /// Punctuation inside the sub annotation is tinted separately, so the two
+    /// layers can be told apart (or the sub layer left untinted entirely).
+    @Published var colorSubPunctuation: Bool { didSet { defaults.set(colorSubPunctuation, forKey: "colorSubPunctuation") } }
+    @Published var subPunctuationColor: String { didSet { defaults.set(subPunctuationColor, forKey: "subPunctuationColor") } }
     @Published var showGrid: Bool     { didSet { defaults.set(showGrid, forKey: "showGrid") } }
     @Published var gridColor: String  { didSet { defaults.set(gridColor, forKey: "gridColor") } }
     @Published var gridDot: Double    { didSet { defaults.set(gridDot, forKey: "gridDot") } }
@@ -118,6 +122,8 @@ final class ReaderSettings: ObservableObject {
         colorPunctuation = b("colorPunctuation", false)
         // The blue used for punctuation in the Red Rising print edition.
         punctuationColor = ud.string(forKey: "punctuationColor") ?? "#000091"
+        colorSubPunctuation = b("colorSubPunctuation", false)
+        subPunctuationColor = ud.string(forKey: "subPunctuationColor") ?? "#000091"
         showGrid  = b("showGrid", false)
         // 0.30 tint on white, the print build's default grid gray.
         gridColor = ud.string(forKey: "gridColor") ?? "#B3B3B3"

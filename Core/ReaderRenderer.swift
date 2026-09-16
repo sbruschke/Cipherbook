@@ -97,18 +97,44 @@ enum ReaderRenderer {
           text-transform: none !important;
           -webkit-user-select: none;
         }
+        \(punctFontCSS(bottom, fallback))
         """
     }
 
     /// Punctuation is tinted by a class the `punctuationJS` pass installs, so the
-    /// rule has to out-specify the blanket `body, body *` colour above — and the
-    /// ruby rule below it, for punctuation that ends up inside an annotation.
+    /// rule has to out-specify the blanket `body, body *` colour above.
+    ///
+    /// The two layers are tinted separately: `body .cb-punct` would otherwise reach
+    /// into the annotation too, so the sub rule always follows it to take that back,
+    /// either to its own colour or to the sub text colour.
+    ///
+    /// The font rule is not optional. `body, body *` sets the main family with
+    /// `!important`, and it matches these spans directly wherever they sit —
+    /// including inside `rt` — so a directly-matching declaration beats the sub
+    /// family the `rt` rule can only pass down by inheritance. Without this,
+    /// turning colouring on silently switches the annotation's punctuation to the
+    /// main font.
     @MainActor
     static func punctCSS(_ settings: ReaderSettings) -> String {
         guard settings.colorPunctuation else { return "" }
         let c = settings.punctuationColor
+        let sub = settings.colorSubPunctuation ? settings.subPunctuationColor : settings.palette.muted
         return """
-        body .cb-punct, body ruby.cb-ruby rt.cb-rt .cb-punct { color: \(c) !important; }
+        body .cb-punct { color: \(c) !important; }
+        body ruby.cb-ruby rt.cb-rt .cb-punct { color: \(sub) !important; }
+        """
+    }
+
+    /// Keeps punctuation spans inside an annotation on the sub font — see `punctCSS`
+    /// for why the blanket `body *` rule would otherwise capture them.
+    @MainActor
+    static func punctFontCSS(_ bottom: FontChoice, _ fallback: String) -> String {
+        """
+        body ruby.cb-ruby rt.cb-rt .cb-punct {
+          font-family: \(bottom.cssFamily), \(fallback) !important;
+          font-size: inherit !important;
+          letter-spacing: 0 !important;
+        }
         """
     }
 

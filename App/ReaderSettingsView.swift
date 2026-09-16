@@ -114,11 +114,19 @@ struct ReaderSettingsView: View {
                         }
                         Spacer()
                     }
+                    if settings.dualFont {
+                        Toggle("Tint sub text punctuation", isOn: $settings.colorSubPunctuation)
+                        if settings.colorSubPunctuation {
+                            ColorPicker("Sub punctuation", selection: hexBinding($settings.subPunctuationColor))
+                        }
+                    }
                 }
             } header: {
                 Text("Punctuation")
             } footer: {
-                Text("Tints every punctuation mark and symbol, as in the printed cipher editions.")
+                Text(settings.dualFont
+                     ? "Tints every punctuation mark and symbol, as in the printed cipher editions. The sub text keeps its own colour, so the two layers stay apart."
+                     : "Tints every punctuation mark and symbol, as in the printed cipher editions.")
             }
 
             Section {

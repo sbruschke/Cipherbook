@@ -65,6 +65,7 @@ struct ReaderScreen: View {
          settings.customBackground, settings.customForeground,
          settings.customMuted, settings.customAccent,
          String(settings.colorPunctuation), settings.punctuationColor,
+         String(settings.colorSubPunctuation), settings.subPunctuationColor,
          String(settings.showGrid), settings.gridColor,
          String(settings.gridDot)].joined(separator: "|")
     }
