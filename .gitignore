@@ -2,3 +2,4 @@ build/
 !releases/
 *.xcodeproj
 .DS_Store
+scripts/lexicon-src/
