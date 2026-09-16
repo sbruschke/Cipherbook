@@ -13,6 +13,10 @@ enum KeyAction: Equatable {
     case globe
 }
 
+/// Keyboard extensions drop touches on fully transparent pixels, so anything that should
+/// be tappable across its whole frame gets this instead of `.clear`.
+let touchableClear = UIColor(white: 1, alpha: 0.001)
+
 struct KeySpec {
     let action: KeyAction
     /// In letter-key widths; 0 stretches to fill the row.
@@ -128,6 +132,7 @@ final class KeyButton: UIControl {
     init(spec: KeySpec) {
         self.spec = spec
         super.init(frame: .zero)
+        backgroundColor = touchableClear  // so the gaps between caps still hit a key
         cap.isUserInteractionEnabled = false
         cap.layer.cornerRadius = 5
         cap.layer.shadowColor = UIColor.black.cgColor
@@ -332,6 +337,7 @@ final class SuggestionBar: UIView {
 
     override init(frame: CGRect) {
         super.init(frame: frame)
+        backgroundColor = touchableClear
         for index in 0..<3 {
             let button = UIButton(type: .custom)
             button.tag = index
@@ -375,7 +381,7 @@ final class SuggestionBar: UIView {
             ]), for: .normal)
             button.backgroundColor = item.kind == .autocorrect || item.kind == .swiped
                 ? (dark ? UIColor(white: 1, alpha: 0.18) : UIColor(white: 1, alpha: 0.85))
-                : .clear
+                : touchableClear
         }
         for (index, divider) in dividers.enumerated() {
             divider.backgroundColor = ink.withAlphaComponent(0.2)
@@ -396,7 +402,7 @@ final class SuggestionBar: UIView {
         let slot = bounds.width / 3
         for (index, button) in buttons.enumerated() {
             button.frame = CGRect(x: CGFloat(index) * slot, y: 0, width: slot, height: bounds.height)
-                .insetBy(dx: 4, dy: 5)
+                .insetBy(dx: 2, dy: 2)
         }
         for (index, divider) in dividers.enumerated() {
             divider.frame = CGRect(x: CGFloat(index + 1) * slot - 0.5, y: bounds.height * 0.25,
