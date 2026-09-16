@@ -84,10 +84,15 @@ public struct Predictor {
     }
 
     /// Orders `candidates` by score, known words first, keeping the input order for ties
-    /// and for words the lexicon doesn't know.
-    public func rank(_ candidates: [String], context: WordContext) -> [String] {
+    /// and for words the lexicon doesn't know. `positionPenalty` is subtracted per place
+    /// in the input, for lists whose order already means something (spelling guesses
+    /// come nearest-edit first).
+    public func rank(_ candidates: [String], context: WordContext, positionPenalty: Float = 0) -> [String] {
         candidates.enumerated()
-            .map { (index: $0.offset, word: $0.element, score: score($0.element, context: context)) }
+            .map { item -> (index: Int, word: String, score: Float?) in
+                let base = score(item.element, context: context)
+                return (item.offset, item.element, base.map { $0 - positionPenalty * Float(item.offset) })
+            }
             .sorted { a, b in
                 switch (a.score, b.score) {
                 case let (x?, y?) where x != y: return x > y

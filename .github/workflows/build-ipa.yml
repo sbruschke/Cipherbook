@@ -21,6 +21,9 @@ jobs:
           xcodebuild -version
           xcodebuild -showsdks | grep -i ios || true
 
+      - name: Test KeyboardCore
+        run: swift test --package-path Packages/KeyboardCore
+
       - name: Install XcodeGen
         run: brew install xcodegen
 

@@ -18,6 +18,8 @@ packages:
   ZIPFoundation:
     url: https://github.com/weichsel/ZIPFoundation
     from: 0.9.19
+  KeyboardCore:
+    path: Packages/KeyboardCore
 
 targets:
   Cipherbook:
@@ -35,7 +37,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.dxshdw.cipherbook
         PRODUCT_NAME: Cipherbook
-        MARKETING_VERSION: "1.6.0"
+        MARKETING_VERSION: "1.7.0"
         CURRENT_PROJECT_VERSION: "0"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGNING_ALLOWED: NO
@@ -62,12 +64,18 @@ targets:
       - path: Keyboard
         excludes:
           - "Info.plist"
+          - "Resources"
+          - "Resources/**"
+      - path: Keyboard/Resources
+        buildPhase: resources
       - path: Core/SharedKeyboard.swift
+    dependencies:
+      - package: KeyboardCore
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.dxshdw.cipherbook.keyboard
         PRODUCT_NAME: CipherKeys
-        MARKETING_VERSION: "1.6.0"
+        MARKETING_VERSION: "1.7.0"
         CURRENT_PROJECT_VERSION: "0"
         INFOPLIST_FILE: Keyboard/Info.plist
         GENERATE_INFOPLIST_FILE: NO

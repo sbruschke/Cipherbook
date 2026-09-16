@@ -10,6 +10,7 @@ final class KeyboardSettings: ObservableObject {
     @Published var cipherSuggestions: Bool
     @Published var cipherFunctionKeys: Bool
     @Published var autocorrect: Bool
+    @Published var swipeTyping: Bool
     @Published var glyphScale: Double
     @Published private(set) var sharedStorageReady = SharedKeyboard.containerURL != nil
 
@@ -22,6 +23,7 @@ final class KeyboardSettings: ObservableObject {
         cipherSuggestions = saved.cipherSuggestions
         cipherFunctionKeys = saved.cipherFunctionKeys
         autocorrect = saved.autocorrect
+        swipeTyping = saved.swipeTyping
         glyphScale = saved.glyphScale
     }
 
@@ -32,6 +34,7 @@ final class KeyboardSettings: ObservableObject {
         config.cipherSuggestions = cipherSuggestions
         config.cipherFunctionKeys = cipherFunctionKeys
         config.autocorrect = autocorrect
+        config.swipeTyping = swipeTyping
         config.glyphScale = glyphScale
         if let source = choice.fileURL {
             config.fontFile = SharedKeyboard.stageFont(source)
@@ -77,6 +80,7 @@ struct KeyboardSettingsView: View {
                 Toggle("Suggestions in this font", isOn: $keyboard.cipherSuggestions)
                 Toggle("Function keys in this font", isOn: $keyboard.cipherFunctionKeys)
                 Toggle("Auto-correction", isOn: $keyboard.autocorrect)
+                Toggle("Swipe to type", isOn: $keyboard.swipeTyping)
             } header: {
                 Text("Keyboard")
             } footer: {
@@ -113,6 +117,7 @@ struct KeyboardSettingsView: View {
         .onChange(of: keyboard.cipherSuggestions) { _ in keyboard.sync(using: fonts) }
         .onChange(of: keyboard.cipherFunctionKeys) { _ in keyboard.sync(using: fonts) }
         .onChange(of: keyboard.autocorrect) { _ in keyboard.sync(using: fonts) }
+        .onChange(of: keyboard.swipeTyping) { _ in keyboard.sync(using: fonts) }
         .onChange(of: keyboard.glyphScale) { _ in keyboard.sync(using: fonts) }
     }
 }
