@@ -103,6 +103,7 @@ struct ReaderScreen: View {
         var updated = book
         updated.lastChapter = model.chapter
         updated.lastScroll = model.scrollFraction
+        updated.lastOpenedAt = Date()
         library.save(updated)
     }
 

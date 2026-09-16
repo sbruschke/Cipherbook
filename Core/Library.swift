@@ -8,6 +8,7 @@ struct Book: Identifiable, Codable, Hashable {
     var addedAt: Date
     var lastChapter: Int = 0
     var lastScroll: Double = 0    // 0...1 fraction within the chapter
+    var lastOpenedAt: Date?       // nil for books never opened (and for older meta.json)
 
     var dir: URL { Storage.booksDir.appendingPathComponent(id, isDirectory: true) }
     var contentDir: URL { dir.appendingPathComponent("content", isDirectory: true) }
@@ -33,6 +34,12 @@ final class Library: ObservableObject {
             return try? decoder.decode(Book.self, from: data)
         }
         .sorted { $0.addedAt > $1.addedAt }
+    }
+
+    /// The book `cipherbook://continue` opens: the last one read, or else the newest.
+    var mostRecent: Book? {
+        books.filter { $0.lastOpenedAt != nil }
+            .max { $0.lastOpenedAt! < $1.lastOpenedAt! } ?? books.first
     }
 
     func save(_ book: Book) {

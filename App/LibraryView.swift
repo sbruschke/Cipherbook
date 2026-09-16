@@ -7,18 +7,17 @@ struct LibraryView: View {
 
     @State private var importing = false
     @State private var showSettings = false
+    @State private var path: [Book] = []
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             Group {
                 if library.books.isEmpty {
                     emptyState
                 } else {
                     List {
                         ForEach(library.books) { book in
-                            NavigationLink {
-                                ReaderContainer(book: book)
-                            } label: {
+                            NavigationLink(value: book) {
                                 row(book)
                             }
                         }
@@ -30,6 +29,9 @@ struct LibraryView: View {
                 }
             }
             .navigationTitle("Cipherbook")
+            .navigationDestination(for: Book.self) { book in
+                ReaderContainer(book: book)
+            }
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button { showSettings = true } label: {
@@ -45,6 +47,7 @@ struct LibraryView: View {
             .sheet(isPresented: $showSettings) {
                 NavigationStack { ReaderSettingsView() }
             }
+            .onOpenURL(perform: open)
             .fileImporter(isPresented: $importing,
                           allowedContentTypes: ImportTypes.epub,
                           allowsMultipleSelection: true) { result in
@@ -59,6 +62,25 @@ struct LibraryView: View {
             } message: {
                 Text(library.lastError ?? "")
             }
+        }
+    }
+
+    /// `cipherbook://continue` reopens the last book read; `cipherbook://library`
+    /// returns to the list. Anything else just brings the app forward.
+    private func open(_ url: URL) {
+        guard url.scheme == "cipherbook" else { return }
+        showSettings = false
+        switch url.host {
+        case "continue":
+            library.reload()
+            guard let book = library.mostRecent else { path = []; return }
+            // Already reading it: leave the open reader alone rather than reloading it.
+            if path.count == 1, path[0].id == book.id { return }
+            path = [book]
+        case "library":
+            path = []
+        default:
+            break
         }
     }
 
