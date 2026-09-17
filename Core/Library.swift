@@ -9,6 +9,9 @@ struct Book: Identifiable, Codable, Hashable {
     var lastChapter: Int = 0
     var lastScroll: Double = 0    // 0...1 fraction within the chapter
     var lastOpenedAt: Date?       // nil for books never opened (and for older meta.json)
+    /// Index of the first word in view within `lastChapter`. Survives font and layout
+    /// changes, unlike `lastScroll`, which is only kept as a fallback for older saves.
+    var lastWord: Int?
 
     var dir: URL { Storage.booksDir.appendingPathComponent(id, isDirectory: true) }
     var contentDir: URL { dir.appendingPathComponent("content", isDirectory: true) }

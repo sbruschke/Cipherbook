@@ -5,3 +5,4 @@ build/
 scripts/lexicon-src/
 Packages/KeyboardCore/.build/
 scripts/emoji-src/
+Tests/ReaderJS/node_modules/

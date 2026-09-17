@@ -56,6 +56,20 @@ enum ReaderTheme: String, CaseIterable, Identifiable {
     }
 }
 
+/// How a chapter is laid out: one long scroll, screen-sized pages, or a word at a time.
+enum ReadingMode: String, CaseIterable, Identifiable {
+    case scroll, paged, word
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .scroll: return "Scroll"
+        case .paged:  return "Pages"
+        case .word:   return "Word"
+        }
+    }
+}
+
 @MainActor
 final class ReaderSettings: ObservableObject {
     private let defaults = UserDefaults.standard
@@ -80,6 +94,9 @@ final class ReaderSettings: ObservableObject {
     @Published var showGrid: Bool     { didSet { defaults.set(showGrid, forKey: "showGrid") } }
     @Published var gridColor: String  { didSet { defaults.set(gridColor, forKey: "gridColor") } }
     @Published var gridDot: Double    { didSet { defaults.set(gridDot, forKey: "gridDot") } }
+    @Published var readingMode: ReadingMode { didSet { defaults.set(readingMode.rawValue, forKey: "readingMode") } }
+    /// Word-at-a-time text size, as a multiple of the text size.
+    @Published var wordScale: Double { didSet { defaults.set(wordScale, forKey: "wordScale") } }
     @Published var theme: ReaderTheme {
         didSet {
             defaults.set(theme.rawValue, forKey: "theme")
@@ -128,6 +145,8 @@ final class ReaderSettings: ObservableObject {
         // 0.30 tint on white, the print build's default grid gray.
         gridColor = ud.string(forKey: "gridColor") ?? "#B3B3B3"
         gridDot   = d("gridDot", 1.0)
+        readingMode = ReadingMode(rawValue: ud.string(forKey: "readingMode") ?? "") ?? .scroll
+        wordScale  = d("wordScale", 2.5)
         theme      = ReaderTheme(rawValue: ud.string(forKey: "theme") ?? "") ?? .light
         customBackground = ud.string(forKey: "customBackground") ?? "#101418"
         customForeground = ud.string(forKey: "customForeground") ?? "#e8e2d4"
