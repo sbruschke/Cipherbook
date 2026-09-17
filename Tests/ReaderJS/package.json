@@ -1,0 +1,8 @@
+{
+  "name": "cipherbook-reader-js-tests",
+  "private": true,
+  "type": "module",
+  "description": "Runs ReaderRenderer's page scripts in WebKit",
+  "scripts": { "test": "node reader.spec.mjs" },
+  "devDependencies": { "playwright": "1.63.0" }
+}

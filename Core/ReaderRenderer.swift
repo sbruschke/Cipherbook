@@ -98,6 +98,79 @@ enum ReaderRenderer {
           -webkit-user-select: none;
         }
         \(punctFontCSS(bottom, fallback))
+        \(pagedCSS(settings))
+        \(wordCSS(settings, top: top, bottom: bottom, fallback: fallback))
+        """
+    }
+
+    /// Screen-sized pages as CSS columns, one column per screen. Always present but
+    /// scoped to `html.cb-paged`, so switching modes is a class change, not a restyle.
+    @MainActor
+    static func pagedCSS(_ settings: ReaderSettings) -> String {
+        let m = Int(settings.margin)
+        let top = Int(topPad)
+        let bottom = 44
+        return """
+        html.cb-paged, html.cb-paged body { overflow: hidden !important; }
+        html.cb-paged body {
+          box-sizing: border-box !important;
+          height: 100vh !important;
+          padding: \(top)px \(m)px \(bottom)px \(m)px !important;
+          -webkit-column-width: calc(100vw - \(2 * m)px) !important;
+          column-width: calc(100vw - \(2 * m)px) !important;
+          -webkit-column-gap: \(2 * m)px !important;
+          column-gap: \(2 * m)px !important;
+          column-fill: auto !important;
+          will-change: transform;
+        }
+        html.cb-paged img, html.cb-paged svg, html.cb-paged video {
+          max-height: calc(100vh - \(top + bottom)px) !important;
+          object-fit: contain;
+        }
+        """
+    }
+
+    /// The single-word overlay. It lives outside `<body>`, so the blanket body rules
+    /// above don't reach it and it carries its own typography.
+    @MainActor
+    static func wordCSS(_ settings: ReaderSettings, top: FontChoice, bottom: FontChoice,
+                        fallback: String) -> String {
+        let p = settings.palette
+        let size = String(format: "%.1f", settings.fontSize * settings.wordScale)
+        let sub = settings.colorSubPunctuation ? settings.subPunctuationColor : p.muted
+        let punct = settings.colorPunctuation ? """
+        #cb-word .cb-punct { color: \(settings.punctuationColor); }
+        #cb-word rt .cb-punct { color: \(sub); font-family: \(bottom.cssFamily), \(fallback); }
+        """ : ""
+        return """
+        #cb-word { display: none; }
+        html.cb-word, html.cb-word body { overflow: hidden !important; }
+        html.cb-word body { visibility: hidden !important; }
+        html.cb-word #cb-word {
+          display: flex; flex-direction: column; align-items: center; justify-content: center;
+          position: fixed; left: 0; top: 0; right: 0; bottom: 0; z-index: 2147483647;
+          box-sizing: border-box; padding: 0 \(Int(settings.margin))px;
+          background: \(p.background); color: \(p.foreground);
+          -webkit-user-select: none; user-select: none;
+        }
+        #cb-word .cb-word-text {
+          font-family: \(top.cssFamily), \(fallback);
+          font-size: \(size)px; line-height: 1.3; text-align: center;
+          letter-spacing: \(String(format: "%.2f", settings.letterSpacing))px;
+          overflow-wrap: anywhere; max-width: 100%;
+        }
+        #cb-word ruby { display: ruby; ruby-position: under; -webkit-ruby-position: after; ruby-align: center; }
+        #cb-word rt {
+          font-family: \(bottom.cssFamily), \(fallback);
+          font-size: \(String(format: "%.2f", settings.subScale))em;
+          color: \(p.muted); line-height: 1.15; letter-spacing: 0;
+        }
+        #cb-word .cb-word-count {
+          position: absolute; bottom: 28px; left: 0; right: 0; text-align: center;
+          font: 13px -apple-system, sans-serif; color: \(p.muted);
+          font-variant-numeric: tabular-nums;
+        }
+        \(punct)
         """
     }
 
@@ -171,7 +244,11 @@ enum ReaderRenderer {
         el.id = 'cb-style';
         (document.head || document.documentElement).appendChild(el);
       }
+      var keep = window.cbCurrentWord ? window.cbCurrentWord() : null;
       el.textContent = css;
+      if (keep !== null && window.cbAfterLayout) {
+        window.cbAfterLayout(function () { window.cbGoToWord(keep); });
+      }
       if (document.body) window.cbMeasureGrid();
       if (document.fonts && document.fonts.ready) {
         document.fonts.ready.then(function () { window.cbMeasureGrid(); });
@@ -292,28 +369,288 @@ enum ReaderRenderer {
     })();
     """
 
-    /// Reports taps (for chrome toggling) and scroll position back to Swift.
-    static let bridgeJS = """
+    /// Reading position, page turning and the word-at-a-time view. Installed at document
+    /// start (after `bootstrapJS`); functions only, nothing runs until Swift calls them.
+    ///
+    /// Positions are word indexes: every whitespace-separated run that contains a letter or
+    /// digit, in document order, ignoring ruby annotations. That is the same whether the
+    /// page is wrapped for two fonts or tinted, and whatever the layout, so one number
+    /// restores the place in scroll, page and word modes alike.
+    static let navigationJS = #"""
     (function () {
-      document.addEventListener('click', function (e) {
-        var el = e.target;
-        while (el && el.nodeType === 1) {
-          if (el.tagName === 'A') return;
-          el = el.parentNode;
+      var state = { mode: 'scroll', word: 0, dual: false, punct: false };
+      var words = null;
+      var observer = null;
+      var SKIP = { SCRIPT: 1, STYLE: 1, NOSCRIPT: 1, RT: 1, RP: 1, HEAD: 1, TITLE: 1 };
+      var BLOCK = /^(P|DIV|H[1-6]|LI|UL|OL|BLOCKQUOTE|PRE|TD|TH|TR|DT|DD|DL|SECTION|ARTICLE|ASIDE|HEADER|FOOTER|FIGURE|FIGCAPTION|TABLE|BODY|HR|BR)$/;
+      var HAS_WORD = /[\p{L}\p{N}]/u;
+      var PUNCT = /([\p{P}\p{S}]+)/u;
+      var IS_PUNCT = /[\p{P}\p{S}]/u;
+
+      function post(msg) { window.webkit.messageHandlers.cb.postMessage(msg); }
+      function isSpace(c) { return c === 32 || c === 9 || c === 10 || c === 13 || c === 12 || c === 160; }
+
+      function skipped(node) {
+        for (var p = node.parentNode; p && p.nodeType === 1; p = p.parentNode) {
+          if (SKIP[p.nodeName.toUpperCase()] || p.id === 'cb-word') return true;
         }
-        window.webkit.messageHandlers.cb.postMessage({ type: 'tap' });
-      }, true);
-      var pending = false;
-      window.addEventListener('scroll', function () {
-        if (pending) return;
-        pending = true;
-        setTimeout(function () {
-          pending = false;
-          window.webkit.messageHandlers.cb.postMessage({
-            type: 'scroll', value: window.cbScrollFraction()
+        return false;
+      }
+      function blockOf(node) {
+        var p = node.parentNode;
+        while (p && p !== document.body && !BLOCK.test(p.nodeName.toUpperCase())) p = p.parentNode;
+        return p;
+      }
+
+      function build() {
+        words = [];
+        if (!document.body) return words;
+        if (!observer) {
+          observer = new MutationObserver(function () { words = null; });
+          observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+        }
+        var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+        var cur = null, lastBlock = null;
+        function finish() {
+          if (cur && HAS_WORD.test(cur.text)) words.push(cur);
+          cur = null;
+        }
+        while (walker.nextNode()) {
+          var n = walker.currentNode, s = n.nodeValue;
+          if (!s || skipped(n)) continue;
+          var b = blockOf(n);
+          if (b !== lastBlock) { finish(); lastBlock = b; }
+          var i = 0;
+          while (i < s.length) {
+            if (isSpace(s.charCodeAt(i))) { finish(); i++; continue; }
+            var j = i;
+            while (j < s.length && !isSpace(s.charCodeAt(j))) j++;
+            if (!cur) cur = { node: n, offset: i, text: '' };
+            cur.text += s.slice(i, j);
+            i = j;
+          }
+        }
+        finish();
+        return words;
+      }
+      function list() { return words || build(); }
+
+      function rectOf(w) {
+        var range = document.createRange();
+        range.setStart(w.node, w.offset);
+        range.setEnd(w.node, Math.min(w.offset + 1, w.node.nodeValue.length));
+        var rects = range.getClientRects();
+        return rects.length ? rects[0] : w.node.parentNode.getBoundingClientRect();
+      }
+
+      // Pages are a translated column layout, one column per screen.
+      var page = 0;
+      function pageOf(rect) {
+        return Math.floor((rect.left + page * window.innerWidth + 1) / window.innerWidth);
+      }
+      // Counted from where the last word or image sits, not the layout width: a trailing
+      // margin can spill into an empty extra column that shouldn't become a blank page.
+      function pageCount() {
+        var last = 0, w = list();
+        if (w.length) last = pageOf(rectOf(w[w.length - 1]));
+        var media = document.body.querySelectorAll('img, svg, video');
+        if (media.length) {
+          var r = media[media.length - 1].getBoundingClientRect();
+          if (r.width > 0) last = Math.max(last, pageOf(r));
+        }
+        return last + 1;
+      }
+      function setPage(n) {
+        page = Math.max(0, Math.min(n, pageCount() - 1));
+        document.body.style.transform = page ? 'translateX(' + (-page * window.innerWidth) + 'px)' : '';
+      }
+
+      // In scroll mode the reading line sits this far down, below the top bar. Saving and
+      // restoring must use the same line, or every reopen drifts by a line.
+      var READ_LINE = 60;
+
+      // The first word at least partly in view (below the reading line, when scrolling).
+      function firstVisible() {
+        var w = list();
+        if (!w.length) return 0;
+        var paged = state.mode === 'paged';
+        var lo = 0, hi = w.length - 1;
+        while (lo < hi) {
+          var mid = (lo + hi) >> 1, r = rectOf(w[mid]);
+          if (paged ? r.right > 1 : r.bottom > READ_LINE + 1) hi = mid; else lo = mid + 1;
+        }
+        return lo;
+      }
+
+      window.cbCurrentWord = function () {
+        if (!document.body) return null;
+        return state.mode === 'word' ? state.word : firstVisible();
+      };
+
+      // Moves to word `i`; -1 means the last word (for stepping back a chapter).
+      window.cbGoToWord = function (i) {
+        var w = list();
+        if (i < 0 || i >= w.length) i = i < 0 ? w.length - 1 : w.length - 1;
+        state.word = Math.max(0, i);
+        if (state.mode === 'word') {
+          render();
+        } else if (w.length) {
+          var r = rectOf(w[state.word]);
+          if (state.mode === 'paged') {
+            setPage(pageOf(r));
+          } else {
+            window.scrollTo(0, Math.max(0, r.top + window.pageYOffset - READ_LINE));
+          }
+        }
+        report();
+      };
+
+      window.cbAfterLayout = function (fn) {
+        var run = function () {
+          requestAnimationFrame(function () { requestAnimationFrame(fn); });
+        };
+        if (document.fonts && document.fonts.ready) document.fonts.ready.then(run); else run();
+      };
+
+      window.cbRestore = function (i) {
+        window.cbAfterLayout(function () { window.cbGoToWord(i); });
+      };
+
+      window.cbSetMode = function (cfg) {
+        var keep = window.cbCurrentWord();
+        var changed = cfg.mode !== state.mode;
+        state.mode = cfg.mode;
+        state.dual = !!cfg.dual;
+        state.punct = !!cfg.punct;
+        var root = document.documentElement;
+        root.classList.toggle('cb-paged', state.mode === 'paged');
+        root.classList.toggle('cb-word', state.mode === 'word');
+        if (state.mode !== 'paged' && document.body) { page = 0; document.body.style.transform = ''; }
+        if (state.mode === 'word') render();
+        if (changed && keep !== null) {
+          window.cbAfterLayout(function () { window.cbGoToWord(keep); });
+        }
+      };
+
+      function escape(s) {
+        return s.replace(/[&<>"]/g, function (c) {
+          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+        });
+      }
+      function tinted(s) {
+        if (!state.punct) return escape(s);
+        return s.split(PUNCT).map(function (part) {
+          if (!part) return '';
+          return IS_PUNCT.test(part) ? '<span class="cb-punct">' + escape(part) + '</span>' : escape(part);
+        }).join('');
+      }
+      function overlay() {
+        var el = document.getElementById('cb-word');
+        if (!el) {
+          el = document.createElement('div');
+          el.id = 'cb-word';
+          el.innerHTML = '<div class="cb-word-text"></div><div class="cb-word-count"></div>';
+          document.documentElement.appendChild(el);
+        }
+        return el;
+      }
+      function render() {
+        var w = list(), el = overlay();
+        var text = w.length ? w[Math.min(state.word, w.length - 1)].text : '';
+        var html;
+        if (state.dual) {
+          // Letters get the two-font pairing; punctuation stays outside it, as on the page.
+          html = text.split(/([\p{L}\p{N}'’]+)/u).map(function (part) {
+            if (!part) return '';
+            if (!HAS_WORD.test(part)) return tinted(part);
+            return '<ruby>' + tinted(part) + '<rt>' + tinted(part) + '</rt></ruby>';
+          }).join('');
+        } else {
+          html = tinted(text);
+        }
+        el.firstChild.innerHTML = html;
+        el.lastChild.textContent = w.length ? (state.word + 1) + ' / ' + w.length : '';
+      }
+
+      var reportTimer = null;
+      function report() {
+        clearTimeout(reportTimer);
+        reportTimer = setTimeout(function () {
+          if (!document.body) return;
+          if (state.mode !== 'word') state.word = firstVisible();
+          post({
+            type: 'position', word: state.word, words: list().length,
+            page: state.mode === 'paged' ? page : -1,
+            pages: state.mode === 'paged' ? pageCount() : -1
           });
-        }, 250);
-      }, { passive: true });
+        }, 120);
+      }
+
+      function turn(step) {
+        if (state.mode === 'paged') {
+          var next = page + step;
+          if (next < 0) { post({ type: 'edge', value: 'previous' }); return; }
+          if (next >= pageCount()) { post({ type: 'edge', value: 'next' }); return; }
+          setPage(next);
+        } else if (state.mode === 'word') {
+          var n = state.word + step;
+          if (n < 0) { post({ type: 'edge', value: 'previous' }); return; }
+          if (n >= list().length) { post({ type: 'edge', value: 'next' }); return; }
+          state.word = n;
+          render();
+        }
+        report();
+      }
+
+      // Taps: the outer thirds turn pages or words; anything else toggles the chrome.
+      // A swipe can be followed by one synthesized click; swallow that one only.
+      var swallowClickUntil = 0;
+      window.cbInstallBridge = function () {
+        if (window.cbBridged) return;
+        window.cbBridged = true;
+        document.addEventListener('click', function (e) {
+          if (Date.now() < swallowClickUntil) { swallowClickUntil = 0; return; }
+          for (var el = e.target; el && el.nodeType === 1; el = el.parentNode) {
+            if (el.tagName === 'A' && state.mode !== 'word') return;
+          }
+          if (state.mode !== 'scroll') {
+            var x = e.clientX / window.innerWidth;
+            if (x < 0.3) { e.preventDefault(); turn(-1); return; }
+            if (x > 0.7) { e.preventDefault(); turn(1); return; }
+          }
+          post({ type: 'tap' });
+        }, true);
+
+        var startX = 0, startY = 0;
+        document.addEventListener('touchstart', function (e) {
+          startX = e.touches[0].clientX;
+          startY = e.touches[0].clientY;
+        }, { passive: true });
+        document.addEventListener('touchend', function (e) {
+          if (state.mode === 'scroll') return;
+          var t = e.changedTouches[0];
+          var dx = t.clientX - startX, dy = t.clientY - startY;
+          if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.3) {
+            swallowClickUntil = Date.now() + 350;
+            turn(dx < 0 ? 1 : -1);
+          }
+        }, { passive: true });
+
+        var pending = false;
+        window.addEventListener('scroll', function () {
+          if (pending || state.mode !== 'scroll') return;
+          pending = true;
+          setTimeout(function () {
+            pending = false;
+            post({ type: 'scroll', value: window.cbScrollFraction() });
+            report();
+          }, 250);
+        }, { passive: true });
+        window.addEventListener('resize', function () {
+          var keep = window.cbCurrentWord();
+          if (keep !== null) window.cbAfterLayout(function () { window.cbGoToWord(keep); });
+        });
+      };
     })();
-    """
+    """#
 }

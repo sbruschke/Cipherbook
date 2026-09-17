@@ -24,6 +24,15 @@ jobs:
       - name: Test KeyboardCore
         run: swift test --package-path Packages/KeyboardCore
 
+      - name: Test reader page scripts (WebKit)
+        working-directory: Tests/ReaderJS
+        env:
+          RENDERER: ${{ github.workspace }}/Core/ReaderRenderer.swift
+        run: |
+          npm ci
+          npx playwright install webkit
+          node reader.spec.mjs
+
       - name: Install XcodeGen
         run: brew install xcodegen
 

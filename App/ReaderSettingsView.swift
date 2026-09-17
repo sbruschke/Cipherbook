@@ -56,6 +56,25 @@ struct ReaderSettingsView: View {
                 }
             }
 
+            Section {
+                Picker("Reading", selection: $settings.readingMode) {
+                    ForEach(ReadingMode.allCases) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                if settings.readingMode == .word {
+                    slider("Word size", value: $settings.wordScale, range: 1.2...6, step: 0.1,
+                           format: { String(format: "%.1f×", $0) })
+                }
+            } header: {
+                Text("Reading")
+            } footer: {
+                switch settings.readingMode {
+                case .scroll: Text("One continuous page per chapter.")
+                case .paged: Text("Tap the left or right side, or swipe, to turn pages.")
+                case .word: Text("One word at a time. Tap the right side for the next word, the left side to go back.")
+                }
+            }
+
             Section("Layout") {
                 slider("Text size", value: $settings.fontSize, range: 10...90, step: 1,
                        format: { "\(Int($0)) pt" })

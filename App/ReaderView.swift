@@ -35,9 +35,10 @@ struct ReaderContainer: View {
                                 settings: settings,
                                 stagedFonts: staged,
                                 startChapter: book.lastChapter,
+                                startWord: book.lastWord,
                                 startScroll: book.lastScroll)
             model = m
-            m.loadCurrentChapter(restoring: book.lastScroll)
+            m.loadCurrentChapter(restoring: book.lastWord.map { .word($0) } ?? .fraction(book.lastScroll))
         } catch {
             self.error = error.localizedDescription
         }
@@ -51,9 +52,11 @@ struct ReaderScreen: View {
     @EnvironmentObject var library: Library
     @EnvironmentObject var settings: ReaderSettings
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var showSettings = false
     @State private var showChapters = false
+    @State private var lastSaved = Date.distantPast
 
     private var styleToken: String {
         [settings.mainFontID, settings.subFontID,
@@ -67,7 +70,8 @@ struct ReaderScreen: View {
          String(settings.colorPunctuation), settings.punctuationColor,
          String(settings.colorSubPunctuation), settings.subPunctuationColor,
          String(settings.showGrid), settings.gridColor,
-         String(settings.gridDot)].joined(separator: "|")
+         String(settings.gridDot), settings.readingMode.rawValue,
+         String(settings.wordScale)].joined(separator: "|")
     }
 
     var body: some View {
@@ -88,6 +92,14 @@ struct ReaderScreen: View {
         .preferredColorScheme(settings.palette.isDark ? .dark : .light)
         .onChange(of: styleToken) { _ in model.settingsChanged() }
         .onChange(of: model.chapter) { _ in persist() }
+        // Save as reading goes on (at most every couple of seconds), and whenever the app
+        // leaves the foreground, so a killed app still reopens at the right word.
+        .onChange(of: model.word) { _ in
+            if Date().timeIntervalSince(lastSaved) > 2 { persist() }
+        }
+        .onChange(of: scenePhase) { phase in
+            if phase != .active { persist() }
+        }
         .onDisappear {
             persist()
             model.teardown()
@@ -103,8 +115,10 @@ struct ReaderScreen: View {
         var updated = book
         updated.lastChapter = model.chapter
         updated.lastScroll = model.scrollFraction
+        updated.lastWord = model.word
         updated.lastOpenedAt = Date()
         library.save(updated)
+        lastSaved = Date()
     }
 
     private var topBar: some View {
@@ -132,8 +146,13 @@ struct ReaderScreen: View {
             Button { model.previous() } label: { Image(systemName: "chevron.left.circle") }
                 .disabled(model.chapter == 0)
             Spacer()
-            Text("\(model.chapter + 1) / \(model.doc.chapters.count)")
-                .font(.footnote.monospacedDigit())
+            VStack(spacing: 1) {
+                Text("\(model.chapter + 1) / \(model.doc.chapters.count)")
+                if let detail = positionDetail {
+                    Text(detail).foregroundStyle(.secondary)
+                }
+            }
+            .font(.footnote.monospacedDigit())
             Spacer()
             Button { model.next() } label: { Image(systemName: "chevron.right.circle") }
                 .disabled(model.chapter >= model.doc.chapters.count - 1)
@@ -143,6 +162,20 @@ struct ReaderScreen: View {
         .padding(.top, 10)
         .padding(.bottom, 6)
         .background(.regularMaterial)
+    }
+
+    /// Page or progress within the chapter, under the chapter count.
+    private var positionDetail: String? {
+        switch settings.readingMode {
+        case .paged where model.pageCount > 0:
+            return "Page \(model.page + 1) of \(model.pageCount)"
+        case .word where model.wordCount > 0:
+            return "Word \(model.word + 1) of \(model.wordCount)"
+        case .scroll where model.wordCount > 0:
+            return "\(Int((Double(model.word) / Double(model.wordCount) * 100).rounded()))%"
+        default:
+            return nil
+        }
     }
 
     private var chapterList: some View {
