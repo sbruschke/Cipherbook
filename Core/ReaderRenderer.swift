@@ -445,8 +445,20 @@ enum ReaderRenderer {
 
       // Pages are a translated column layout, one column per screen.
       var page = 0;
+      function pageOf(rect) {
+        return Math.floor((rect.left + page * window.innerWidth + 1) / window.innerWidth);
+      }
+      // Counted from where the last word or image sits, not the layout width: a trailing
+      // margin can spill into an empty extra column that shouldn't become a blank page.
       function pageCount() {
-        return Math.max(1, Math.ceil((document.body.scrollWidth - 2) / window.innerWidth));
+        var last = 0, w = list();
+        if (w.length) last = pageOf(rectOf(w[w.length - 1]));
+        var media = document.body.querySelectorAll('img, svg, video');
+        if (media.length) {
+          var r = media[media.length - 1].getBoundingClientRect();
+          if (r.width > 0) last = Math.max(last, pageOf(r));
+        }
+        return last + 1;
       }
       function setPage(n) {
         page = Math.max(0, Math.min(n, pageCount() - 1));
@@ -485,7 +497,7 @@ enum ReaderRenderer {
         } else if (w.length) {
           var r = rectOf(w[state.word]);
           if (state.mode === 'paged') {
-            setPage(Math.floor((r.left + page * window.innerWidth + 1) / window.innerWidth));
+            setPage(pageOf(r));
           } else {
             window.scrollTo(0, Math.max(0, r.top + window.pageYOffset - READ_LINE));
           }

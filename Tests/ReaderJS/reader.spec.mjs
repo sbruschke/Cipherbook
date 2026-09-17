@@ -35,7 +35,7 @@ html.cb-word #cb-word { display:flex; flex-direction:column; align-items:center;
 const para = i => `<p>Paragraph ${i}: “Well,” said Darrow—quietly—“it’s time we went; don’t you think?” ` +
   `The ${i}th line keeps going with enough plain words to wrap several times across a phone screen.</p>`;
 const body = `<h1>Chapter One</h1>` + Array.from({ length: 60 }, (_, i) => para(i)).join('') +
-  `<p>Last<b>bold</b>word <a href="#x">link</a> ends here.</p>`;
+  `<p style="margin-bottom:2000px">Last<b>bold</b>word <a href="#x">link</a> ends here.</p>`;
 const html = `<!doctype html><html><head><meta name="viewport" content="width=device-width">
 <script>window.__msgs=[];window.webkit={messageHandlers:{cb:{postMessage:m=>window.__msgs.push(m)}}};</script>
 <script>${bootstrap}</script><script>${nav}</script></head><body>${body}</body></html>`;
