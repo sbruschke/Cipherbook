@@ -75,3 +75,11 @@ it publishes a GitHub Release, and ipa-hub's desktop timer syncs from there.
 The `source.json` and `releases/*.ipa` files still present in this repo's
 history are stale leftovers from the old in-repo feed and are no longer
 updated; do not add this repo's `source.json` as a LiveContainer source.
+
+## Credits
+
+The keyboard's emoji page draws its emoji with [Microsoft Fluent Emoji](https://github.com/microsoft/fluentui-emoji)
+(3D style, MIT licence — see `Keyboard/Resources/FLUENT-EMOJI-LICENSE.txt`); what it types is
+standard Unicode. Rebuild the art with `scripts/build-emoji.py`. Word frequencies come from
+[wordfreq](https://github.com/rspeer/wordfreq) (CC BY-SA 4.0) and next-word pairs from
+[Peter Norvig's n-gram counts](https://norvig.com/ngrams/); rebuild with `scripts/build-lexicon.py`.

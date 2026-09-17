@@ -11,6 +11,7 @@ enum KeyAction: Equatable {
     case space
     case newline
     case globe
+    case emoji
 }
 
 /// Keyboard extensions drop touches on fully transparent pixels, so anything that should
@@ -34,11 +35,12 @@ struct KeySpec {
 }
 
 enum KeyLayout {
-    static func rows(for plane: KeyPlane, showGlobe: Bool) -> [[KeySpec]] {
+    static func rows(for plane: KeyPlane, showGlobe: Bool, showEmoji: Bool) -> [[KeySpec]] {
         func chars(_ s: String, width: CGFloat = 1) -> [KeySpec] {
             s.map { KeySpec(.character(String($0)), width: width) }
         }
         var bottom = [KeySpec(.plane(plane == .letters ? .numbers : .letters), width: 1.25)]
+        if showEmoji { bottom.append(KeySpec(.emoji, width: 1.25)) }
         if showGlobe { bottom.append(KeySpec(.globe, width: 1.25)) }
         bottom += [KeySpec(.space, width: 0), KeySpec(.newline, width: 2.2)]
 

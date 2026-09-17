@@ -1,14 +1,18 @@
+import KeyboardCore
 import UIKit
 
 /// A QWERTY keyboard that types plain English but draws its keys (and,
 /// optionally, its suggestions) in the font chosen in Cipherbook.
 final class KeyboardViewController: UIInputViewController {
     private enum ShiftState { case off, on, locked }
+    /// `emojiSearch` shows the letter keys, but they type into the emoji search.
+    private enum Mode { case keys, emoji, emojiSearch }
 
     private var config = KeyboardConfig()
     private var glyphName: String?
     private var fontMissing = false
 
+    private var mode = Mode.keys
     private var plane: KeyPlane = .letters
     private var shift: ShiftState = .off
     private var lastShiftTap = Date.distantPast
@@ -25,6 +29,18 @@ final class KeyboardViewController: UIInputViewController {
     private let swipe = SwipeGestureRecognizer()
     private let trail = SwipeTrail()
     private var heightConstraint: NSLayoutConstraint!
+    private var barHeightConstraint: NSLayoutConstraint!
+
+    // Emoji page. Built on first use; nil if the bundled emoji data is missing.
+    private lazy var emojiCatalog: EmojiCatalog? = {
+        let bundle = Bundle(for: KeyboardViewController.self)
+        guard let index = bundle.url(forResource: "emoji-index", withExtension: "json"),
+              let images = bundle.url(forResource: "emoji-images", withExtension: "dat") else { return nil }
+        return try? EmojiCatalog(index: index, images: images)
+    }()
+    private var emojiView: EmojiKeyboardView?
+    private var emojiSearch: EmojiSearchHeader?
+    private var emojiQuery = ""
     private var deleteDelay: Timer?
     private var deleteRepeat: Timer?
     private var laidOutRowHeight: CGFloat = 0
@@ -49,6 +65,7 @@ final class KeyboardViewController: UIInputViewController {
         swipe.addTarget(self, action: #selector(handleSwipe(_:)))
         keyboard.addGestureRecognizer(swipe)
 
+        barHeightConstraint = bar.heightAnchor.constraint(equalToConstant: 42)
         heightConstraint = view.heightAnchor.constraint(equalToConstant: 262)
         heightConstraint.priority = UILayoutPriority(999)
         NSLayoutConstraint.activate([
@@ -56,7 +73,7 @@ final class KeyboardViewController: UIInputViewController {
             bar.topAnchor.constraint(equalTo: view.topAnchor),
             bar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             bar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            bar.heightAnchor.constraint(equalToConstant: 42),
+            barHeightConstraint,
             keyboard.topAnchor.constraint(equalTo: bar.bottomAnchor),
             keyboard.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             keyboard.trailingAnchor.constraint(equalTo: view.trailingAnchor),
@@ -72,6 +89,9 @@ final class KeyboardViewController: UIInputViewController {
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         reloadConfig()
+        // Always come back on the keys; a stale emoji search would keep its extra height.
+        mode = .keys
+        applyMode()
         switch proxy.keyboardType ?? .default {
         case .numberPad, .decimalPad, .numbersAndPunctuation, .phonePad, .asciiCapableNumberPad:
             plane = .numbers
@@ -92,12 +112,14 @@ final class KeyboardViewController: UIInputViewController {
 
     override func viewWillLayoutSubviews() {
         super.viewWillLayoutSubviews()
-        let target: CGFloat
+        let base: CGFloat
         if traitCollection.userInterfaceIdiom == .pad {
-            target = 320
+            base = 320
         } else {
-            target = traitCollection.verticalSizeClass == .compact ? 200 : 262
+            base = traitCollection.verticalSizeClass == .compact ? 200 : 262
         }
+        // Searching stacks the query and results on top of the full letter keys.
+        let target = base + (mode == .emojiSearch ? EmojiSearchHeader.height - 42 : 0)
         if heightConstraint.constant != target { heightConstraint.constant = target }
     }
 
@@ -151,7 +173,8 @@ final class KeyboardViewController: UIInputViewController {
     // MARK: Keys
 
     private func rebuildKeys() {
-        let rows = KeyLayout.rows(for: plane, showGlobe: needsInputModeSwitchKey)
+        let rows = KeyLayout.rows(for: plane, showGlobe: needsInputModeSwitchKey,
+                                  showEmoji: emojiCatalog != nil)
         keyboard.setRows(rows.map { $0.map(makeKey) })
         keyboard.bringSubviewToFront(trail)
         updateKeyFaces()
@@ -207,6 +230,9 @@ final class KeyboardViewController: UIInputViewController {
             case .globe:
                 key.setIcon("globe", color: ink)
                 key.setColors(normal: functionKey, pressed: letterKey)
+            case .emoji:
+                key.setIcon(mode == .emojiSearch ? "xmark" : "face.smiling", color: ink)
+                key.setColors(normal: functionKey, pressed: letterKey)
             case .plane(let target):
                 let title = target == .letters ? "ABC" : (target == .numbers ? "123" : "#+=")
                 key.setTitle(title, font: wordFont, color: ink)
@@ -215,7 +241,7 @@ final class KeyboardViewController: UIInputViewController {
                 key.setTitle("space", font: wordFont, color: ink)
                 key.setColors(normal: letterKey, pressed: functionKey)
             case .newline:
-                let returnType = proxy.returnKeyType ?? .default
+                let returnType = mode == .emojiSearch ? .done : (proxy.returnKeyType ?? .default)
                 if returnType == .default {
                     key.setTitle(returnLabel(returnType), font: wordFont, color: ink)
                     key.setColors(normal: functionKey, pressed: letterKey)
@@ -272,6 +298,10 @@ final class KeyboardViewController: UIInputViewController {
             refreshAutoShift()
         case .space:
             typeSpace()
+        case .newline where mode == .emojiSearch:
+            closeEmojiSearch()
+        case .emoji:
+            if mode == .emojiSearch { closeEmojiSearch() } else { showEmoji() }
         case .newline:
             if !autocorrectCurrentWord(trailing: "\n") {
                 revert = nil
@@ -305,6 +335,11 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     @objc private func deleteOnce() {
+        if mode == .emojiSearch {
+            if !emojiQuery.isEmpty { emojiQuery.removeLast() }
+            emojiSearch?.update(query: emojiQuery, dark: isDark)
+            return
+        }
         if let s = swiped, (proxy.documentContextBeforeInput ?? "").hasSuffix(s.word) {
             for _ in 0..<s.word.count { proxy.deleteBackward() }
             swiped = nil
@@ -325,6 +360,15 @@ final class KeyboardViewController: UIInputViewController {
     // MARK: Editing
 
     private func typeCharacter(_ c: String) {
+        if mode == .emojiSearch {
+            emojiQuery += shift == .off ? c : c.uppercased()
+            emojiSearch?.update(query: emojiQuery, dark: isDark)
+            if shift == .on {
+                shift = .off
+                updateKeyFaces()
+            }
+            return
+        }
         revert = nil
         swiped = nil
         proxy.insertText(shift == .off ? c : c.uppercased())
@@ -354,6 +398,11 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private func typeSpace() {
+        if mode == .emojiSearch {
+            emojiQuery += " "
+            emojiSearch?.update(query: emojiQuery, dark: isDark)
+            return
+        }
         let now = Date()
         let before = proxy.documentContextBeforeInput ?? ""
         // Double space after a word becomes ". ", as on the system keyboard.
@@ -435,7 +484,7 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private func refreshAutoShift() {
-        guard shift != .locked else { return }
+        guard shift != .locked, mode == .keys else { return }
         let wanted: ShiftState = plane == .letters && shouldCapitalize() ? .on : .off
         if wanted != shift {
             shift = wanted
@@ -464,6 +513,7 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private func refreshSuggestions() {
+        guard mode == .keys else { return }
         let dark = isDark
         let font = config.cipherSuggestions ? glyphFont(18 * config.glyphScale) : .systemFont(ofSize: 17)
         let before = proxy.documentContextBeforeInput ?? ""
@@ -505,7 +555,7 @@ final class KeyboardViewController: UIInputViewController {
 
     /// Where a swipe may start: any letter key, when swiping is on and usable.
     private func swipeStartFrame(at point: CGPoint) -> CGRect? {
-        guard config.swipeTyping, plane == .letters, engine.canSwipe else { return nil }
+        guard mode == .keys, config.swipeTyping, plane == .letters, engine.canSwipe else { return nil }
         return keyboard.allKeys.first { $0.spec.isCharacter && $0.frame.contains(point) }?.frame
     }
 
@@ -555,5 +605,85 @@ final class KeyboardViewController: UIInputViewController {
             updateKeyFaces()
         }
         afterEdit()
+    }
+
+    // MARK: Emoji
+
+    private func showEmoji() {
+        guard let catalog = emojiCatalog else { return }
+        hidePopup()
+        if emojiView == nil {
+            let images = EmojiImageCache(catalog: catalog)
+            let prefs = EmojiPreferences()
+            let page = EmojiKeyboardView(catalog: catalog, images: images, prefs: prefs)
+            page.onInsert = { [weak self] in self?.insertEmoji($0) }
+            page.onABC = { [weak self] in self?.showKeys() }
+            page.onSearch = { [weak self] in self?.openEmojiSearch() }
+            page.onDeleteDown = { [weak self] in self?.deleteDown() }
+            page.onDeleteUp = { [weak self] in self?.deleteUp() }
+            let search = EmojiSearchHeader(catalog: catalog, images: images, prefs: prefs)
+            search.onInsert = { [weak self] in self?.insertEmoji($0) }
+            search.onClose = { [weak self] in self?.closeEmojiSearch() }
+            for sub in [page, search] as [UIView] {
+                sub.translatesAutoresizingMaskIntoConstraints = false
+                sub.isHidden = true
+                view.addSubview(sub)
+            }
+            NSLayoutConstraint.activate([
+                page.topAnchor.constraint(equalTo: view.topAnchor),
+                page.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+                page.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+                page.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -4),
+                search.topAnchor.constraint(equalTo: view.topAnchor),
+                search.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+                search.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+                search.heightAnchor.constraint(equalToConstant: EmojiSearchHeader.height),
+            ])
+            emojiView = page
+            emojiSearch = search
+        }
+        mode = .emoji
+        applyMode()
+        view.layoutIfNeeded()
+        emojiView?.prepare(dark: isDark)
+    }
+
+    private func showKeys() {
+        mode = .keys
+        plane = .letters
+        rebuildKeys()
+        applyMode()
+        afterEdit()
+    }
+
+    private func openEmojiSearch() {
+        mode = .emojiSearch
+        emojiQuery = ""
+        plane = .letters
+        shift = .off
+        rebuildKeys()
+        applyMode()
+        emojiSearch?.update(query: "", dark: isDark)
+    }
+
+    private func closeEmojiSearch() {
+        showEmoji()
+    }
+
+    /// Shows the views for the current mode and resizes for search.
+    private func applyMode() {
+        bar.isHidden = mode != .keys
+        keyboard.isHidden = mode == .emoji
+        emojiView?.isHidden = mode != .emoji
+        emojiSearch?.isHidden = mode != .emojiSearch
+        barHeightConstraint.constant = mode == .emojiSearch ? EmojiSearchHeader.height : 42
+        updateKeyFaces()
+        view.setNeedsLayout()
+    }
+
+    private func insertEmoji(_ text: String) {
+        revert = nil
+        swiped = nil
+        proxy.insertText(text)
     }
 }
