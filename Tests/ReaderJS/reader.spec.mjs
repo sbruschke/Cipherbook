@@ -121,6 +121,20 @@ const onPage = await page.evaluate(i => {
 }, k);
 assert.ok(onPage);
 const startPage = p.page;
+// Pages past the first must actually be painted: the columns they live in sit outside
+// the body box, so clipping there (overflow:hidden) leaves them blank. Hit-testing the
+// middle of the screen sees the clip; word rects don't.
+// Sampled down the page, since any one point can land in a paragraph gap.
+const painted = () => page.evaluate(() => {
+  let hits = 0;
+  for (let f = 0.1; f < 0.95; f += 0.1) {
+    const el = document.elementFromPoint(window.innerWidth / 2, window.innerHeight * f);
+    for (let n = el; n; n = n.parentNode) if (n.tagName === 'BODY') { hits++; break; }
+  }
+  return hits;
+});
+const isPainted = async () => (await painted()) >= 3;
+assert.ok(await isPainted(), `page ${startPage} is blank`);
 await page.mouse.click(370, 400); await settle();
 p = await last('position');
 assert.equal(p.page, startPage + 1, 'right tap turns forward');
@@ -157,6 +171,7 @@ let prev = -1;
 for (let i = 0; i < p.pages; i++) {
   const w = await current();
   assert.ok(w > prev, `page ${i} starts at ${w}, after ${prev}`);
+  assert.ok(await isPainted(), `page ${i} is blank: ${await painted()} of 9 sample points on the text`);
   prev = w;
   await page.mouse.click(370, 400); await settle();
 }

@@ -241,7 +241,13 @@ final class KeyboardViewController: UIInputViewController {
                 key.setTitle(title, font: wordFont, color: ink)
                 key.setColors(normal: functionKey, pressed: letterKey)
             case .space:
-                key.setTitle("space", font: wordFont, color: ink)
+                // While a word is being typed the space bar reads it back in the system
+                // font: on screen it is cipher glyphs, so this is the only plain-text copy.
+                if let word = engine.currentWord(in: proxy.documentContextBeforeInput) {
+                    key.setTitle(word, font: labelFont, color: ink)
+                } else {
+                    key.setTitle("space", font: wordFont, color: ink)
+                }
                 key.setColors(normal: letterKey, pressed: pressedKey)
             case .newline:
                 let returnType = mode == .emojiSearch ? .done : (proxy.returnKeyType ?? .default)
@@ -648,6 +654,8 @@ final class KeyboardViewController: UIInputViewController {
         mode = .emoji
         applyMode()
         view.layoutIfNeeded()
+        emojiView?.abcFont = config.cipherFunctionKeys ? glyphFont(16)
+                                                       : .systemFont(ofSize: 16, weight: .medium)
         emojiView?.prepare(dark: isDark)
     }
 

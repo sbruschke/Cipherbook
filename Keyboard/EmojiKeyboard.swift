@@ -190,6 +190,10 @@ final class EmojiKeyboardView: UIView, UICollectionViewDataSource, UICollectionV
     var onSearch: (() -> Void)?
     var onDeleteDown: (() -> Void)?
     var onDeleteUp: (() -> Void)?
+    /// The "ABC" label's font, so it can be drawn in the cipher like the letter page's.
+    var abcFont: UIFont = .systemFont(ofSize: 16, weight: .medium) {
+        didSet { abcButton.titleLabel?.font = abcFont }
+    }
 
     private let catalog: EmojiCatalog
     private let images: EmojiImageCache
@@ -253,7 +257,9 @@ final class EmojiKeyboardView: UIView, UICollectionViewDataSource, UICollectionV
         grid.addGestureRecognizer(press)
 
         abcButton.setTitle("ABC", for: .normal)
-        abcButton.titleLabel?.font = .systemFont(ofSize: 16, weight: .medium)
+        abcButton.titleLabel?.font = abcFont
+        abcButton.titleLabel?.adjustsFontSizeToFitWidth = true
+        abcButton.titleLabel?.minimumScaleFactor = 0.5
         abcButton.addTarget(self, action: #selector(abcTapped), for: .touchUpInside)
         addSubview(abcButton)
 
