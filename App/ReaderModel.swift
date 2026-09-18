@@ -132,6 +132,10 @@ final class ReaderModel: NSObject, ObservableObject {
         let mode = settings.readingMode
         webView.scrollView.isScrollEnabled = mode == .scroll
         webView.scrollView.bounces = mode == .scroll
+        // Page and word modes make the document exactly one screen tall. A scroll view
+        // left scrolled down then shows blank space below the content — and with scrolling
+        // off it can't be scrolled back — so put it back to the top as the mode changes.
+        if mode != .scroll { webView.scrollView.setContentOffset(.zero, animated: false) }
         if mode != .paged { page = -1; pageCount = -1 }
         let config = "{mode:'\(mode.rawValue)',dual:\(settings.dualFont),punct:\(settings.colorPunctuation)}"
         webView.evaluateJavaScript("window.cbSetMode(\(config));", completionHandler: nil)

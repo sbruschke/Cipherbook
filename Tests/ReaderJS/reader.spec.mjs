@@ -2,6 +2,7 @@
 import { webkit } from 'playwright';
 import { readFileSync } from 'fs';
 import assert from 'assert/strict';
+import { readerCSS } from './css.mjs';
 
 const swift = readFileSync(process.env.RENDERER, 'utf8');
 function plain(name) {   // static let x = """ ... """  (Swift escapes: \\ → \)
@@ -14,23 +15,8 @@ function raw(name) {     // static let x = #""" ... """#
 const bootstrap = plain('bootstrapJS'), dual = plain('dualFontJS');
 const punct = plain('punctuationJS'), nav = raw('navigationJS');
 
-// A trimmed copy of what ReaderRenderer.css emits (margin 22, size 19, sub 0.6).
-const css = `
-body { margin:0 !important; padding: 28px 22px 96px 22px !important; font-size:19px !important; }
-body, body * { font-family: Georgia, serif !important; line-height:1.6 !important; max-width:100% !important; }
-ruby.cb-ruby { display: ruby; ruby-position: under; -webkit-ruby-position: after; }
-body ruby.cb-ruby rt.cb-rt { font-family: Courier !important; font-size: .6em !important; }
-html.cb-paged, html.cb-paged body { overflow: hidden !important; }
-html.cb-paged body { box-sizing: border-box !important; height: 100vh !important;
-  padding: 28px 22px 44px 22px !important;
-  -webkit-column-width: calc(100vw - 44px) !important; column-width: calc(100vw - 44px) !important;
-  -webkit-column-gap: 44px !important; column-gap: 44px !important; column-fill: auto !important; }
-#cb-word { display: none; }
-html.cb-word, html.cb-word body { overflow: hidden !important; }
-html.cb-word body { visibility: hidden !important; }
-html.cb-word #cb-word { display:flex; flex-direction:column; align-items:center; justify-content:center;
-  position:fixed; left:0; top:0; right:0; bottom:0; }
-#cb-word .cb-punct { color: blue; }`;
+// The stylesheet the app ships, rebuilt from the Swift source.
+const css = readerCSS(process.env.RENDERER);
 
 const para = i => `<p>Paragraph ${i}: “Well,” said Darrow—quietly—“it’s time we went; don’t you think?” ` +
   `The ${i}th line keeps going with enough plain words to wrap several times across a phone screen.</p>`;
@@ -184,6 +170,17 @@ assert.ok(Math.abs(after - before) <= 30, `scroll after pages: ${before} → ${a
 await page.evaluate(c => window.cbSetStyle(c + 'body{font-size:30px !important}'), css); await settle();
 const big = await current();
 assert.ok(Math.abs(big - after) <= 3, `restyle keeps place: ${after} → ${big}`);
+
+// 7. Entering pages or word mode must leave no vertical scroll behind: the document is
+// then one screen tall, and iOS keeps the old offset (with scrolling off, showing blank).
+for (const mode of ['paged', 'word']) {
+  await page.evaluate(() => window.cbSetMode({ mode: 'scroll', dual: true, punct: true }));
+  await settle();
+  await page.evaluate(() => window.scrollTo(0, 4000));
+  await page.evaluate(m => window.cbSetMode({ mode: m, dual: true, punct: true }), mode);
+  await settle();
+  assert.equal(await page.evaluate(() => window.pageYOffset), 0, `${mode} mode scrolled to top`);
+}
 
 console.log('all reader script checks passed');
 await browser.close();
