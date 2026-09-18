@@ -205,9 +205,12 @@ final class KeyboardViewController: UIInputViewController {
     private func updateKeyFaces() {
         let dark = isDark
         let ink: UIColor = dark ? .white : .black
-        let letterKey = dark ? UIColor(white: 0.42, alpha: 1) : .white
-        let functionKey = dark ? UIColor(white: 0.26, alpha: 1)
+        // Sampled from the stock keyboard: in dark mode its keys are #424243 and its
+        // bottom row #404041, both far darker than the grey this used to draw.
+        let letterKey = dark ? UIColor(white: 0.259, alpha: 1) : .white
+        let functionKey = dark ? UIColor(white: 0.251, alpha: 1)
                                : UIColor(red: 0.67, green: 0.70, blue: 0.74, alpha: 1)
+        let pressedKey = dark ? UIColor(white: 0.42, alpha: 1) : functionKey
         let labelFont = UIFont.systemFont(ofSize: 16)
         let glyphSize = min(max(keyboard.rowHeight * 0.5, 18), 26) * config.glyphScale
         let glyph = glyphFont(glyphSize)
@@ -219,7 +222,7 @@ final class KeyboardViewController: UIInputViewController {
             switch key.spec.action {
             case .character(let c):
                 key.setTitle(shift == .off ? c : c.uppercased(), font: glyph, color: ink)
-                key.setColors(normal: letterKey, pressed: functionKey)
+                key.setColors(normal: letterKey, pressed: pressedKey)
             case .shift:
                 let symbol = shift == .locked ? "capslock.fill" : (shift == .on ? "shift.fill" : "shift")
                 key.setIcon(symbol, color: ink)
@@ -239,7 +242,7 @@ final class KeyboardViewController: UIInputViewController {
                 key.setColors(normal: functionKey, pressed: letterKey)
             case .space:
                 key.setTitle("space", font: wordFont, color: ink)
-                key.setColors(normal: letterKey, pressed: functionKey)
+                key.setColors(normal: letterKey, pressed: pressedKey)
             case .newline:
                 let returnType = mode == .emojiSearch ? .done : (proxy.returnKeyType ?? .default)
                 if returnType == .default {

@@ -526,6 +526,7 @@ enum ReaderRenderer {
         root.classList.toggle('cb-paged', state.mode === 'paged');
         root.classList.toggle('cb-word', state.mode === 'word');
         if (state.mode !== 'paged' && document.body) { page = 0; document.body.style.transform = ''; }
+        if (state.mode !== 'scroll') window.scrollTo(0, 0);
         if (state.mode === 'word') render();
         if (changed && keep !== null) {
           window.cbAfterLayout(function () { window.cbGoToWord(keep); });
