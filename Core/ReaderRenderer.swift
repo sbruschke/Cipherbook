@@ -111,8 +111,12 @@ enum ReaderRenderer {
         let top = Int(topPad)
         let bottom = 44
         return """
-        html.cb-paged, html.cb-paged body { overflow: hidden !important; }
+        html.cb-paged { overflow: hidden !important; }
+        /* The body IS the multicol box, and every column past the first sits outside it.
+           Clipping here would hide them, leaving blank pages after the first. The root
+           clips instead, and the translate below brings each column into view. */
         html.cb-paged body {
+          overflow: visible !important;
           box-sizing: border-box !important;
           height: 100vh !important;
           padding: \(top)px \(m)px \(bottom)px \(m)px !important;
