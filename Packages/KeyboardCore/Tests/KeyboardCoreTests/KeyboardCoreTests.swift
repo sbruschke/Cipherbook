@@ -206,3 +206,15 @@ struct SplitMix {
         return (-2 * log(u)).squareRoot() * cos(2 * .pi * v)
     }
 }
+
+final class SuggestionRulesTests: XCTestCase {
+    func testCaseOnlyChangesAreRecognised() {
+        XCTAssertTrue(SuggestionRules.isCaseOnlyChange("A", of: "a"))
+        XCTAssertTrue(SuggestionRules.isCaseOnlyChange("Will", of: "will"))
+        XCTAssertTrue(SuggestionRules.isCaseOnlyChange("mark", of: "Mark"))
+        XCTAssertFalse(SuggestionRules.isCaseOnlyChange("a", of: "a"))
+        XCTAssertFalse(SuggestionRules.isCaseOnlyChange("I'm", of: "im"))
+        XCTAssertFalse(SuggestionRules.isCaseOnlyChange("Paris", of: "paris ")) // different letters
+        XCTAssertFalse(SuggestionRules.isCaseOnlyChange("teh", of: "the"))
+    }
+}

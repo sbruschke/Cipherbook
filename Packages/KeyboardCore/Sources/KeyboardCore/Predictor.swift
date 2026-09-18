@@ -116,3 +116,14 @@ public struct Predictor {
         }
     }
 }
+
+/// Autocorrect decisions that need no UIKit, so they can be tested off-device.
+public enum SuggestionRules {
+    /// True when the candidate is the typed word in different clothes — same
+    /// letters, different case. The supplementary lexicon is full of these:
+    /// contacts and text replacements put "A", "Will" and "Mark" in it, and
+    /// matching them case-insensitively would capitalise ordinary words.
+    public static func isCaseOnlyChange(_ candidate: String, of typed: String) -> Bool {
+        candidate != typed && candidate.lowercased() == typed.lowercased()
+    }
+}

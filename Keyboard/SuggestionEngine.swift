@@ -72,6 +72,15 @@ final class SuggestionEngine {
 
         let misspelled = checker.rangeOfMisspelledWord(in: word, range: range, startingAt: 0,
                                                        wrap: false, language: language).location != NSNotFound
+        // Nothing but "i" may silently re-case a word the dictionary knows. The
+        // supplementary lexicon holds contact names and text replacements, so
+        // "a" matches an entry for "A" and every article came back capitalised.
+        // The capitalised form stays on the bar to be tapped.
+        if word != "i", let fix = result.correction, !misspelled,
+           SuggestionRules.isCaseOnlyChange(fix, of: word) {
+            result.correction = nil
+            result.options.append(fix)
+        }
         if misspelled {
             var guesses = checker.guesses(forWordRange: range, in: word, language: language) ?? []
             if let predictor {
