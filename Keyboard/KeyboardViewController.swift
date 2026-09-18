@@ -353,6 +353,7 @@ final class KeyboardViewController: UIInputViewController {
             for _ in 0..<s.word.count { proxy.deleteBackward() }
             swiped = nil
             revert = nil
+            updateKeyFaces()
             refreshSuggestions()
             return
         }
@@ -363,6 +364,7 @@ final class KeyboardViewController: UIInputViewController {
             proxy.deleteBackward()
         }
         revert = nil
+        updateKeyFaces()
         refreshSuggestions()
     }
 
@@ -489,6 +491,9 @@ final class KeyboardViewController: UIInputViewController {
 
     private func afterEdit() {
         refreshAutoShift()
+        // The space bar reads back the word being typed, so it has to follow every
+        // edit: `textDidChange` alone doesn't reach us for each keystroke.
+        updateKeyFaces()
         refreshSuggestions()
     }
 
