@@ -30,4 +30,9 @@ enum ImportTypes {
         UTType("org.w3.woff")
     ] + ["ttf", "otf", "ttc", "woff", "woff2"].map { UTType(filenameExtension: $0) })
         .compactMap { $0 }
+
+    /// What `AudioServicesCreateSystemSoundID` can open — no MP3 or AAC.
+    static let keySound: [UTType] = (([UTType.wav, UTType.aiff] as [UTType?])
+        + SharedKeyboard.soundExtensions.map { UTType(filenameExtension: $0) })
+        .compactMap { $0 }
 }

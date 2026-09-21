@@ -73,6 +73,10 @@ struct KeyboardConfig {
     var autocorrect = true
     var swipeTyping = true
     var glyphScale = 1.0
+    var soundTheme = KeySoundTheme.system
+    /// Event raw value -> file name inside `SharedKeyboard.soundsDir`. Only used
+    /// by the `custom` theme; an event with no entry falls back to Typewriter.
+    var customSounds: [String: String] = [:]
     /// False until the app has written a config the keyboard can see.
     var configured = false
 
@@ -84,6 +88,8 @@ struct KeyboardConfig {
         static let autocorrect = "kb.autocorrect"
         static let swipeTyping = "kb.swipeTyping"
         static let glyphScale = "kb.glyphScale"
+        static let soundTheme = "kb.soundTheme"
+        static let customSounds = "kb.customSounds"
         static let configured = "kb.configured"
     }
 
@@ -97,6 +103,8 @@ struct KeyboardConfig {
         config.autocorrect = d.object(forKey: Key.autocorrect) as? Bool ?? true
         config.swipeTyping = d.object(forKey: Key.swipeTyping) as? Bool ?? true
         config.glyphScale = d.object(forKey: Key.glyphScale) as? Double ?? 1.0
+        config.soundTheme = (d.string(forKey: Key.soundTheme)).flatMap(KeySoundTheme.init) ?? .system
+        config.customSounds = d.dictionary(forKey: Key.customSounds) as? [String: String] ?? [:]
         config.configured = d.bool(forKey: Key.configured)
         return config
     }
@@ -110,6 +118,8 @@ struct KeyboardConfig {
         d.set(autocorrect, forKey: Key.autocorrect)
         d.set(swipeTyping, forKey: Key.swipeTyping)
         d.set(glyphScale, forKey: Key.glyphScale)
+        d.set(soundTheme.rawValue, forKey: Key.soundTheme)
+        d.set(customSounds, forKey: Key.customSounds)
         d.set(true, forKey: Key.configured)
     }
 
