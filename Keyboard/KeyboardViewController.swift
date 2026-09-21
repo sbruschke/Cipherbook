@@ -26,6 +26,7 @@ final class KeyboardViewController: UIInputViewController {
     private let keyboard = KeyboardView()
     private let popup = KeyPopup()
     private let engine = SuggestionEngine()
+    private let sounds = KeySoundPlayer()
     private let swipe = SwipeGestureRecognizer()
     private let trail = SwipeTrail()
     private var heightConstraint: NSLayoutConstraint!
@@ -144,6 +145,7 @@ final class KeyboardViewController: UIInputViewController {
 
     private func reloadConfig() {
         config = KeyboardConfig.load()
+        sounds.reload(config)
         switch config.resolveFont() {
         case .system:
             glyphName = nil
@@ -182,6 +184,10 @@ final class KeyboardViewController: UIInputViewController {
 
     private func makeKey(_ spec: KeySpec) -> KeyButton {
         let key = KeyButton(spec: spec)
+        // Delete is left out: `deleteOnce` sounds it, so held repeats click too.
+        if spec.action != .delete {
+            key.addTarget(self, action: #selector(keyDown(_:)), for: .touchDown)
+        }
         switch spec.action {
         case .globe:
             key.addTarget(self, action: #selector(handleInputModeList(from:with:)), for: .allTouchEvents)
@@ -279,6 +285,16 @@ final class KeyboardViewController: UIInputViewController {
 
     // MARK: Touch handling
 
+    @objc private func keyDown(_ key: KeyButton) {
+        switch key.spec.action {
+        case .character: sounds.play(.key)
+        case .space: sounds.play(.space)
+        case .newline: sounds.play(.newline)
+        case .delete: sounds.play(.delete)
+        default: sounds.play(.modifier)
+        }
+    }
+
     @objc private func characterDown(_ key: KeyButton) {
         guard traitCollection.userInterfaceIdiom == .phone,
               case .character(let c) = key.spec.action else { return }
@@ -344,6 +360,7 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     @objc private func deleteOnce() {
+        sounds.play(.delete)
         if mode == .emojiSearch {
             if !emojiQuery.isEmpty { emojiQuery.removeLast() }
             emojiSearch?.update(query: emojiQuery, dark: isDark)
@@ -454,6 +471,7 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private func apply(_ suggestion: Suggestion) {
+        sounds.play(.key)
         let before = proxy.documentContextBeforeInput ?? ""
         switch suggestion.kind {
         case .prediction:
@@ -570,7 +588,7 @@ final class KeyboardViewController: UIInputViewController {
     /// Where a swipe may start: any letter key, when swiping is on and usable.
     private func swipeStartFrame(at point: CGPoint) -> CGRect? {
         guard mode == .keys, config.swipeTyping, plane == .letters, engine.canSwipe else { return nil }
-        return keyboard.allKeys.first { $0.spec.isCharacter && $0.frame.contains(point) }?.frame
+        return keyboard.allKeys.first { $0.spec.isLetter && $0.frame.contains(point) }?.frame
     }
 
     @objc private func handleSwipe(_ gesture: SwipeGestureRecognizer) {
@@ -593,7 +611,8 @@ final class KeyboardViewController: UIInputViewController {
         var centres: [Character: CGPoint] = [:]
         var keyWidth: CGFloat = 0
         for key in keyboard.allKeys {
-            guard case .character(let c) = key.spec.action, let letter = c.first else { continue }
+            guard key.spec.isLetter, case .character(let c) = key.spec.action,
+                  let letter = c.first else { continue }
             centres[letter] = CGPoint(x: key.frame.midX, y: key.frame.midY)
             keyWidth = key.frame.width
         }
@@ -601,6 +620,7 @@ final class KeyboardViewController: UIInputViewController {
         let words = engine.swipe(path: path, keys: centres, keyWidth: keyWidth,
                                  context: engine.context(before: before, currentWord: nil))
         guard !words.isEmpty else { return }
+        sounds.play(.key)
 
         let styled = words.map { word -> String in
             switch shift {
@@ -631,13 +651,13 @@ final class KeyboardViewController: UIInputViewController {
             let prefs = EmojiPreferences()
             let page = EmojiKeyboardView(catalog: catalog, images: images, prefs: prefs)
             page.onInsert = { [weak self] in self?.insertEmoji($0) }
-            page.onABC = { [weak self] in self?.showKeys() }
-            page.onSearch = { [weak self] in self?.openEmojiSearch() }
+            page.onABC = { [weak self] in self?.sounds.play(.modifier); self?.showKeys() }
+            page.onSearch = { [weak self] in self?.sounds.play(.modifier); self?.openEmojiSearch() }
             page.onDeleteDown = { [weak self] in self?.deleteDown() }
             page.onDeleteUp = { [weak self] in self?.deleteUp() }
             let search = EmojiSearchHeader(catalog: catalog, images: images, prefs: prefs)
             search.onInsert = { [weak self] in self?.insertEmoji($0) }
-            search.onClose = { [weak self] in self?.closeEmojiSearch() }
+            search.onClose = { [weak self] in self?.sounds.play(.modifier); self?.closeEmojiSearch() }
             for sub in [page, search] as [UIView] {
                 sub.translatesAutoresizingMaskIntoConstraints = false
                 sub.isHidden = true
@@ -698,6 +718,7 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private func insertEmoji(_ text: String) {
+        sounds.play(.key)
         revert = nil
         swiped = nil
         proxy.insertText(text)

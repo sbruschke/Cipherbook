@@ -32,6 +32,13 @@ struct KeySpec {
         if case .character = action { return true }
         return false
     }
+
+    /// A letter key, and so a key swipe typing may pass through — which the
+    /// bottom row's comma and full stop, character keys though they are, are not.
+    var isLetter: Bool {
+        if case .character(let c) = action, c.count == 1, c.first?.isLetter == true { return true }
+        return false
+    }
 }
 
 enum KeyLayout {
@@ -39,10 +46,15 @@ enum KeyLayout {
         func chars(_ s: String, width: CGFloat = 1) -> [KeySpec] {
             s.map { KeySpec(.character(String($0)), width: width) }
         }
-        var bottom = [KeySpec(.plane(plane == .letters ? .numbers : .letters), width: 1.25)]
-        if showEmoji { bottom.append(KeySpec(.emoji, width: 1.25)) }
-        if showGlobe { bottom.append(KeySpec(.globe, width: 1.25)) }
-        bottom += [KeySpec(.space, width: 0), KeySpec(.newline, width: 2.2)]
+        // Comma and full stop flank the space bar, so the mode keys and return
+        // give up a little width to keep the bar as wide as it can be.
+        var bottom = [KeySpec(.plane(plane == .letters ? .numbers : .letters), width: 1.1)]
+        if showEmoji { bottom.append(KeySpec(.emoji, width: 1.1)) }
+        if showGlobe { bottom.append(KeySpec(.globe, width: 1.1)) }
+        bottom += [KeySpec(.character(","), width: 1),
+                   KeySpec(.space, width: 0),
+                   KeySpec(.character("."), width: 1),
+                   KeySpec(.newline, width: 2)]
 
         let punctuation = chars(".,?!'", width: 1.44)
         switch plane {

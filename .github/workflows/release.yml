@@ -12,6 +12,7 @@ on:
       - 'Keyboard/**'
       - 'Entitlements/**'
       - 'Resources/**'
+      - 'Sounds/**'
       - 'project.yml'
       - '.github/workflows/release.yml'
   workflow_dispatch:

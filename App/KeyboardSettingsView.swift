@@ -1,3 +1,4 @@
+import AudioToolbox
 import SwiftUI
 
 /// App-side keyboard settings. The keyboard extension can't see the app's own
@@ -12,6 +13,9 @@ final class KeyboardSettings: ObservableObject {
     @Published var autocorrect: Bool
     @Published var swipeTyping: Bool
     @Published var glyphScale: Double
+    @Published var soundTheme: KeySoundTheme
+    /// Event raw value -> file name in the App Group, for the Custom theme.
+    @Published var customSounds: [String: String]
     @Published private(set) var sharedStorageReady = SharedKeyboard.containerURL != nil
 
     init() {
@@ -25,6 +29,19 @@ final class KeyboardSettings: ObservableObject {
         autocorrect = saved.autocorrect
         swipeTyping = saved.swipeTyping
         glyphScale = saved.glyphScale
+        soundTheme = saved.soundTheme
+        customSounds = saved.customSounds
+    }
+
+    func importSound(_ source: URL, for event: KeySoundEvent) -> Bool {
+        guard let file = SharedKeyboard.stageSound(source, for: event) else { return false }
+        customSounds[event.rawValue] = file
+        return true
+    }
+
+    func clearSound(for event: KeySoundEvent) {
+        SharedKeyboard.clearSound(for: event)
+        customSounds[event.rawValue] = nil
     }
 
     func sync(using fonts: FontLibrary) {
@@ -36,6 +53,8 @@ final class KeyboardSettings: ObservableObject {
         config.autocorrect = autocorrect
         config.swipeTyping = swipeTyping
         config.glyphScale = glyphScale
+        config.soundTheme = soundTheme
+        config.customSounds = customSounds
         if let source = choice.fileURL {
             config.fontFile = SharedKeyboard.stageFont(source)
         }
@@ -50,6 +69,19 @@ struct KeyboardSettingsView: View {
     @State private var testText = ""
 
     private var font: FontChoice { fonts.choice(for: keyboard.fontID) }
+
+    private var soundFooter: String {
+        switch keyboard.soundTheme {
+        case .off:
+            return "The keyboard types silently."
+        case .system:
+            return "The stock iOS click — the only theme that follows Settings › Sounds & Haptics › Keyboard Feedback."
+        case .typewriter:
+            return "Built-in typewriter clacks, with the margin bell on return. Tap a row to hear it."
+        case .custom:
+            return "Pick a .wav, .aiff or .caf for each key — the formats iOS can play as a system sound. Anything left unset uses the typewriter sound. Keep them short; a clip still playing when the next key lands is cut off. Custom sounds need Allow Full Access, like the key font."
+        }
+    }
 
     var body: some View {
         Form {
@@ -88,6 +120,29 @@ struct KeyboardSettingsView: View {
             }
 
             Section {
+                Picker("Key sounds", selection: $keyboard.soundTheme) {
+                    ForEach(KeySoundTheme.allCases) { Text($0.title).tag($0) }
+                }
+                if keyboard.soundTheme == .custom {
+                    ForEach(KeySoundEvent.allCases) { event in
+                        CustomSoundRow(event: event, keyboard: keyboard)
+                    }
+                } else if keyboard.soundTheme == .typewriter {
+                    ForEach(KeySoundEvent.allCases) { event in
+                        Button {
+                            SoundPreview.play(bundled: event.typewriterResource)
+                        } label: {
+                            Label(event.title, systemImage: "play.circle")
+                        }
+                    }
+                }
+            } header: {
+                Text("Sound")
+            } footer: {
+                Text(soundFooter)
+            }
+
+            Section {
                 TextField("Switch to Cipherbook with 🌐 and type here", text: $testText, axis: .vertical)
                     .lineLimit(2...6)
             } header: {
@@ -119,6 +174,8 @@ struct KeyboardSettingsView: View {
         .onChange(of: keyboard.autocorrect) { _ in keyboard.sync(using: fonts) }
         .onChange(of: keyboard.swipeTyping) { _ in keyboard.sync(using: fonts) }
         .onChange(of: keyboard.glyphScale) { _ in keyboard.sync(using: fonts) }
+        .onChange(of: keyboard.soundTheme) { _ in keyboard.sync(using: fonts) }
+        .onChange(of: keyboard.customSounds) { _ in keyboard.sync(using: fonts) }
     }
 }
 
@@ -151,5 +208,71 @@ private struct KeyRowsPreview: View {
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity)
         .background(Color(.systemGray5))
+    }
+}
+
+/// One row of the Custom theme: which file is set, and the buttons to hear,
+/// replace or clear it.
+private struct CustomSoundRow: View {
+    let event: KeySoundEvent
+    @ObservedObject var keyboard: KeyboardSettings
+    @State private var importing = false
+    @State private var failed = false
+
+    private var file: String? { keyboard.customSounds[event.rawValue] }
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(event.title)
+                Text(failed ? "Couldn't read that file" : (file ?? "Typewriter"))
+                    .font(.caption)
+                    .foregroundStyle(failed ? Color.red : Color.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            Spacer()
+            Button {
+                if let file, let url = SharedKeyboard.soundURL(named: file) {
+                    SoundPreview.play(url)
+                } else {
+                    SoundPreview.play(bundled: event.typewriterResource)
+                }
+            } label: {
+                Image(systemName: "play.circle")
+            }
+            Button("Choose") { importing = true }
+            if file != nil {
+                Button(role: .destructive) { keyboard.clearSound(for: event) } label: {
+                    Image(systemName: "xmark.circle")
+                }
+            }
+        }
+        .buttonStyle(.borderless)
+        .fileImporter(isPresented: $importing,
+                      allowedContentTypes: ImportTypes.keySound,
+                      allowsMultipleSelection: false) { result in
+            guard case .success(let urls) = result, let url = urls.first else { return }
+            failed = !keyboard.importSound(url, for: event)
+            if failed { keyboard.clearSound(for: event) }
+        }
+    }
+}
+
+/// Plays a sound the same way the keyboard will, so the preview is honest.
+private enum SoundPreview {
+    private static var current: SystemSoundID = 0
+
+    static func play(bundled name: String) {
+        guard let url = Bundle.main.url(forResource: name, withExtension: "wav") else { return }
+        play(url)
+    }
+
+    static func play(_ url: URL) {
+        if current != 0 { AudioServicesDisposeSystemSoundID(current) }
+        var id: SystemSoundID = 0
+        guard AudioServicesCreateSystemSoundID(url as CFURL, &id) == noErr else { return }
+        current = id
+        AudioServicesPlaySystemSound(id)
     }
 }
