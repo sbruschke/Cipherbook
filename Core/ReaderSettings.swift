@@ -25,6 +25,10 @@ enum ReaderTheme: String, CaseIterable, Identifiable {
     case light, sepia, dark, black, custom
     var id: String { rawValue }
 
+    /// The built-ins offered on each side of the split, plus Custom.
+    static let lightChoices: [ReaderTheme] = [.light, .sepia, .custom]
+    static let darkChoices: [ReaderTheme] = [.dark, .black, .custom]
+
     var label: String {
         switch self {
         case .light:  return "Light"
@@ -54,6 +58,50 @@ enum ReaderTheme: String, CaseIterable, Identifiable {
             return nil
         }
     }
+}
+
+/// Whether the sub font pairs with whole words or with each letter.
+enum SubMatch: String, CaseIterable, Identifiable {
+    case word, letter
+    var id: String { rawValue }
+    var label: String { self == .word ? "Word" : "Letter" }
+}
+
+/// Which side of the light/dark split the reader shows. `system` follows iOS.
+enum Appearance: String, CaseIterable, Identifiable {
+    case light, dark, system
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .light:  return "Light"
+        case .dark:   return "Dark"
+        case .system: return "System"
+        }
+    }
+}
+
+/// A user-edited palette; one is kept for each side of the light/dark split.
+struct CustomPalette: Codable, Equatable {
+    var background: String
+    var foreground: String
+    var muted: String
+    var accent: String
+
+    var palette: Palette {
+        Palette(background: background, foreground: foreground, muted: muted, accent: accent)
+    }
+    init(_ p: Palette) {
+        background = p.background; foreground = p.foreground; muted = p.muted; accent = p.accent
+    }
+    init(background: String, foreground: String, muted: String, accent: String) {
+        self.background = background; self.foreground = foreground
+        self.muted = muted; self.accent = accent
+    }
+
+    static let lightDefault = CustomPalette(background: "#fbf7ee", foreground: "#2a2a2e",
+                                            muted: "#4f7a5a", accent: "#2b6cb0")
+    static let darkDefault = CustomPalette(background: "#101418", foreground: "#e8e2d4",
+                                           muted: "#7fb28a", accent: "#7aa9e0")
 }
 
 /// How a chapter is laid out: one long scroll, screen-sized pages, or a word at a time.
@@ -97,24 +145,43 @@ final class ReaderSettings: ObservableObject {
     @Published var readingMode: ReadingMode { didSet { defaults.set(readingMode.rawValue, forKey: "readingMode") } }
     /// Word-at-a-time text size, as a multiple of the text size.
     @Published var wordScale: Double { didSet { defaults.set(wordScale, forKey: "wordScale") } }
-    @Published var theme: ReaderTheme {
-        didSet {
-            defaults.set(theme.rawValue, forKey: "theme")
-            if theme.builtIn != nil { defaults.set(theme.rawValue, forKey: "lastBuiltInTheme") }
+    @Published var subMatch: SubMatch { didSet { defaults.set(subMatch.rawValue, forKey: "subMatch") } }
+    @Published var appearance: Appearance { didSet { defaults.set(appearance.rawValue, forKey: "appearance") } }
+    /// The iOS appearance, for `Appearance.system`; refreshed whenever the app becomes active.
+    @Published private(set) var systemIsDark: Bool
+
+    @Published var lightTheme: ReaderTheme { didSet { defaults.set(lightTheme.rawValue, forKey: "lightTheme") } }
+    @Published var darkTheme: ReaderTheme  { didSet { defaults.set(darkTheme.rawValue, forKey: "darkTheme") } }
+    @Published var lightCustom: CustomPalette { didSet { Self.store(lightCustom, "lightCustom") } }
+    @Published var darkCustom: CustomPalette  { didSet { Self.store(darkCustom, "darkCustom") } }
+
+    /// True when the reader is currently showing the dark side.
+    var showsDark: Bool {
+        switch appearance {
+        case .light:  return false
+        case .dark:   return true
+        case .system: return systemIsDark
         }
     }
 
-    // Custom theme colors (hex strings).
-    @Published var customBackground: String { didSet { defaults.set(customBackground, forKey: "customBackground") } }
-    @Published var customForeground: String { didSet { defaults.set(customForeground, forKey: "customForeground") } }
-    @Published var customMuted: String      { didSet { defaults.set(customMuted, forKey: "customMuted") } }
-    @Published var customAccent: String     { didSet { defaults.set(customAccent, forKey: "customAccent") } }
-
     var palette: Palette {
-        theme.builtIn ?? Palette(background: customBackground,
-                                 foreground: customForeground,
-                                 muted: customMuted,
-                                 accent: customAccent)
+        showsDark ? Self.resolve(darkTheme, darkCustom) : Self.resolve(lightTheme, lightCustom)
+    }
+
+    private static func resolve(_ theme: ReaderTheme, _ custom: CustomPalette) -> Palette {
+        theme.builtIn ?? custom.palette
+    }
+
+    private static func store(_ c: CustomPalette, _ key: String) {
+        if let data = try? JSONEncoder().encode(c) { UserDefaults.standard.set(data, forKey: key) }
+    }
+    private static func load(_ key: String) -> CustomPalette? {
+        UserDefaults.standard.data(forKey: key).flatMap { try? JSONDecoder().decode(CustomPalette.self, from: $0) }
+    }
+
+    func refreshSystemAppearance() {
+        let dark = UIScreen.main.traitCollection.userInterfaceStyle == .dark
+        if dark != systemIsDark { systemIsDark = dark }
     }
 
     init() {
@@ -147,10 +214,27 @@ final class ReaderSettings: ObservableObject {
         gridDot   = d("gridDot", 1.0)
         readingMode = ReadingMode(rawValue: ud.string(forKey: "readingMode") ?? "") ?? .scroll
         wordScale  = d("wordScale", 2.5)
-        theme      = ReaderTheme(rawValue: ud.string(forKey: "theme") ?? "") ?? .light
-        customBackground = ud.string(forKey: "customBackground") ?? "#101418"
-        customForeground = ud.string(forKey: "customForeground") ?? "#e8e2d4"
-        customMuted      = ud.string(forKey: "customMuted")      ?? "#7fb28a"
-        customAccent     = ud.string(forKey: "customAccent")     ?? "#7aa9e0"
+        subMatch   = SubMatch(rawValue: ud.string(forKey: "subMatch") ?? "") ?? .word
+        systemIsDark = UIScreen.main.traitCollection.userInterfaceStyle == .dark
+
+        // Before the light/dark split there was one theme and one custom palette.
+        // Keep that look: it moves to whichever side its background belongs on.
+        let oldTheme = ReaderTheme(rawValue: ud.string(forKey: "theme") ?? "") ?? .light
+        let oldCustom = CustomPalette(
+            background: ud.string(forKey: "customBackground") ?? CustomPalette.darkDefault.background,
+            foreground: ud.string(forKey: "customForeground") ?? CustomPalette.darkDefault.foreground,
+            muted: ud.string(forKey: "customMuted") ?? CustomPalette.darkDefault.muted,
+            accent: ud.string(forKey: "customAccent") ?? CustomPalette.darkDefault.accent)
+        let oldDark = (oldTheme.builtIn ?? oldCustom.palette).isDark
+
+        appearance = Appearance(rawValue: ud.string(forKey: "appearance") ?? "")
+            ?? (oldDark ? .dark : .light)
+        lightTheme = ReaderTheme(rawValue: ud.string(forKey: "lightTheme") ?? "")
+            ?? (!oldDark ? oldTheme : .light)
+        darkTheme = ReaderTheme(rawValue: ud.string(forKey: "darkTheme") ?? "")
+            ?? (oldDark ? oldTheme : .dark)
+        let oldCustomIsDark = oldCustom.palette.isDark
+        lightCustom = Self.load("lightCustom") ?? (oldCustomIsDark ? .lightDefault : oldCustom)
+        darkCustom  = Self.load("darkCustom")  ?? (oldCustomIsDark ? oldCustom : .darkDefault)
     }
 }

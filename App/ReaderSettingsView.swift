@@ -42,6 +42,10 @@ struct ReaderSettingsView: View {
                             Text(subFont.display).lineLimit(1)
                         }
                     }
+                    Picker("Sub font matches", selection: $settings.subMatch) {
+                        ForEach(SubMatch.allCases) { Text($0.label).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
                     Toggle("Swap main and sub", isOn: $settings.swapped)
                     slider("Sub size", value: $settings.subScale, range: 0.25...1.4, step: 0.05,
                            format: { String(format: "%.0f%%", $0 * 100) })
@@ -89,26 +93,20 @@ struct ReaderSettingsView: View {
             }
 
             Section {
-                Picker("Theme", selection: $settings.theme) {
-                    ForEach(ReaderTheme.allCases) { Text($0.label).tag($0) }
+                Picker("Appearance", selection: $settings.appearance) {
+                    ForEach(Appearance.allCases) { Text($0.label).tag($0) }
                 }
                 .pickerStyle(.segmented)
-
-                if settings.theme == .custom {
-                    ColorPicker("Background", selection: hexBinding($settings.customBackground))
-                    ColorPicker("Main text", selection: hexBinding($settings.customForeground))
-                    ColorPicker("Sub text", selection: hexBinding($settings.customMuted))
-                    ColorPicker("Links", selection: hexBinding($settings.customAccent))
-                    Button("Copy current theme's colors") { seedCustomFromBuiltIn() }
-                        .font(.footnote)
-                }
             } header: {
-                Text("Theme")
+                Text("Appearance")
             } footer: {
-                if settings.theme == .custom {
-                    Text("Sub text is the colour of the second font under each word.")
-                }
+                Text("Light and dark each keep their own theme and custom colours. System follows iOS.")
             }
+
+            themeSection("Light theme", choices: ReaderTheme.lightChoices,
+                         theme: $settings.lightTheme, custom: $settings.lightCustom)
+            themeSection("Dark theme", choices: ReaderTheme.darkChoices,
+                         theme: $settings.darkTheme, custom: $settings.darkCustom)
 
             Section {
                 Toggle("Colour punctuation", isOn: $settings.colorPunctuation)
@@ -203,16 +201,38 @@ struct ReaderSettingsView: View {
         }
     }
 
-    /// Seeds the custom palette from the last built-in theme so editing starts
-    /// from something readable rather than from whatever was there before.
-    private func seedCustomFromBuiltIn() {
-        let source = ReaderTheme(rawValue: UserDefaults.standard.string(forKey: "lastBuiltInTheme") ?? "")
-            ?? .light
-        guard let p = source.builtIn else { return }
-        settings.customBackground = p.background
-        settings.customForeground = p.foreground
-        settings.customMuted = p.muted
-        settings.customAccent = p.accent
+    /// One side of the light/dark split: a built-in picker plus its own custom palette.
+    private func themeSection(_ title: String,
+                              choices: [ReaderTheme],
+                              theme: Binding<ReaderTheme>,
+                              custom: Binding<CustomPalette>) -> some View {
+        Section {
+            Picker(title, selection: theme) {
+                ForEach(choices) { Text($0.label).tag($0) }
+            }
+            .pickerStyle(.segmented)
+
+            if theme.wrappedValue == .custom {
+                ColorPicker("Background", selection: hexBinding(custom.background))
+                ColorPicker("Main text", selection: hexBinding(custom.foreground))
+                ColorPicker("Sub text", selection: hexBinding(custom.muted))
+                ColorPicker("Links", selection: hexBinding(custom.accent))
+                Menu("Copy colours from…") {
+                    ForEach(choices.filter { $0.builtIn != nil }) { source in
+                        Button(source.label) {
+                            if let p = source.builtIn { custom.wrappedValue = CustomPalette(p) }
+                        }
+                    }
+                }
+                .font(.footnote)
+            }
+        } header: {
+            Text(title)
+        } footer: {
+            if theme.wrappedValue == .custom {
+                Text("Sub text is the colour of the second font under each word.")
+            }
+        }
     }
 
     private func slider(_ title: String,

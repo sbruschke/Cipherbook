@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct ReaderContainer: View {
     let book: Book
@@ -64,9 +65,13 @@ struct ReaderScreen: View {
          String(settings.lineHeight), String(settings.margin),
          String(settings.letterSpacing), String(settings.justified),
          String(settings.dualFont), String(settings.swapped),
-         String(settings.forceSize), settings.theme.rawValue,
-         settings.customBackground, settings.customForeground,
-         settings.customMuted, settings.customAccent,
+         String(settings.forceSize), settings.subMatch.rawValue,
+         settings.appearance.rawValue, String(settings.systemIsDark),
+         settings.lightTheme.rawValue, settings.darkTheme.rawValue,
+         settings.lightCustom.background, settings.lightCustom.foreground,
+         settings.lightCustom.muted, settings.lightCustom.accent,
+         settings.darkCustom.background, settings.darkCustom.foreground,
+         settings.darkCustom.muted, settings.darkCustom.accent,
          String(settings.colorPunctuation), settings.punctuationColor,
          String(settings.colorSubPunctuation), settings.subPunctuationColor,
          String(settings.showGrid), settings.gridColor,
@@ -90,6 +95,9 @@ struct ReaderScreen: View {
         .toolbar(.hidden, for: .navigationBar)
         .statusBarHidden(!model.showChrome)
         .preferredColorScheme(settings.palette.isDark ? .dark : .light)
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+            settings.refreshSystemAppearance()
+        }
         .onChange(of: styleToken) { _ in model.settingsChanged() }
         .onChange(of: model.chapter) { _ in persist() }
         // Save as reading goes on (at most every couple of seconds), and whenever the app
@@ -121,6 +129,11 @@ struct ReaderScreen: View {
         lastSaved = Date()
     }
 
+    /// Flips to the other side of the light/dark split; System becomes an explicit choice.
+    private func toggleAppearance() {
+        settings.appearance = settings.showsDark ? .light : .dark
+    }
+
     private var topBar: some View {
         HStack(spacing: 18) {
             Button { persist(); dismiss() } label: {
@@ -132,6 +145,9 @@ struct ReaderScreen: View {
             Button { showChapters = true } label: { Image(systemName: "list.bullet") }
             Button { settings.dualFont.toggle() } label: {
                 Image(systemName: settings.dualFont ? "textformat.abc.dottedunderline" : "textformat.abc")
+            }
+            Button { toggleAppearance() } label: {
+                Image(systemName: settings.showsDark ? "sun.max" : "moon")
             }
             Button { showSettings = true } label: { Image(systemName: "textformat.size") }
         }

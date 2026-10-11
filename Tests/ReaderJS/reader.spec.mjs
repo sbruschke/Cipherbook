@@ -197,5 +197,29 @@ for (const mode of ['paged', 'word']) {
   assert.equal(await page.evaluate(() => window.pageYOffset), 0, `${mode} mode scrolled to top`);
 }
 
+// 8. Letter matching: one ruby pair per letter, same word list and place as word matching.
+{
+  const lp = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
+  await lp.setContent(html);
+  await lp.evaluate(c => { window.cbSetStyle(c); window.cbInstallBridge(); }, css);
+  const total0 = await lp.evaluate(() => { window.cbSetMode({ mode: 'word', dual: false, punct: false });
+    const n = document.querySelector('#cb-word .cb-word-count').textContent; window.cbSetMode({ mode: 'scroll' }); return n; });
+  await lp.evaluate(src => { window.cbMatch = 'letter'; eval(src.dual); eval(src.punct); }, { dual, punct });
+  const pairs = await lp.evaluate(() => [...document.querySelectorAll('ruby.cb-ruby')].map(r => r.firstChild.textContent));
+  assert.ok(pairs.length > 0 && pairs.every(t => Array.from(t).length === 1), 'every pair is a single letter');
+  const sample = await lp.evaluate(() => { const c = [...document.querySelectorAll('p')][3].cloneNode(true);
+    c.querySelectorAll('rt').forEach(rt => rt.remove()); return c.textContent; });
+  assert.match(sample, /^Paragraph 3: /, 'text content is unchanged by the wrap');
+  const total1 = await lp.evaluate(() => { window.cbSetMode({ mode: 'word', dual: true, match: 'letter', punct: true });
+    const n = document.querySelector('#cb-word .cb-word-count').textContent; return n; });
+  assert.equal(total1.split(' / ')[1], total0.split(' / ')[1], 'letter wrap keeps the word count');
+  await lp.evaluate(() => window.cbGoToWord(0));
+  for (let i = 0; i < 4 || !(await lp.evaluate(() => /Well/.test([...document.querySelectorAll('#cb-word .cb-word-text ruby')].map(r => r.firstChild.textContent).join('')))); i++) { assert.ok(i < 10, 'reached the word'); await lp.mouse.click(370, 400); await lp.evaluate(() => new Promise(r => setTimeout(r, 150))); }
+  const lw = await lp.evaluate(() => document.querySelector('#cb-word .cb-word-text').innerHTML);
+  assert.match(lw, /<ruby>W<rt>W<\/rt><\/ruby><ruby>e<rt>e<\/rt><\/ruby>/, 'overlay pairs each letter');
+  assert.doesNotMatch(lw, /<ruby>Well</, 'overlay does not pair whole words');
+  await lp.close();
+}
+
 console.log('all reader script checks passed');
 await browser.close();
