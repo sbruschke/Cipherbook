@@ -311,20 +311,37 @@ enum ReaderRenderer {
       });
       var nodes = [];
       while (walker.nextNode()) nodes.push(walker.currentNode);
+      // 'letter' pairs every letter with its own sub glyph; otherwise whole words.
+      var LETTER = window.cbMatch === 'letter';
+      var MARK = /\\p{M}/u;
+      function pair(text) {
+        var ruby = document.createElement('ruby');
+        ruby.className = 'cb-ruby';
+        ruby.appendChild(document.createTextNode(text));
+        var rt = document.createElement('rt');
+        rt.className = 'cb-rt';
+        rt.textContent = text;
+        ruby.appendChild(rt);
+        return ruby;
+      }
       nodes.forEach(function (n) {
         if (!n.parentNode) return;
         var frag = document.createDocumentFragment();
         n.nodeValue.split(/(\\s+)/).forEach(function (tok) {
           if (!tok) return;
           if (!WORD.test(tok)) { frag.appendChild(document.createTextNode(tok)); return; }
-          var ruby = document.createElement('ruby');
-          ruby.className = 'cb-ruby';
-          ruby.appendChild(document.createTextNode(tok));
-          var rt = document.createElement('rt');
-          rt.className = 'cb-rt';
-          rt.textContent = tok;
-          ruby.appendChild(rt);
-          frag.appendChild(ruby);
+          if (!LETTER) { frag.appendChild(pair(tok)); return; }
+          // Letter mode: a combining mark stays with the letter before it, and
+          // anything that isn't a letter or digit stays plain between the pairs.
+          var plain = '', unit = '';
+          function flushUnit() { if (unit) { frag.appendChild(pair(unit)); unit = ''; } }
+          function flushPlain() { if (plain) { frag.appendChild(document.createTextNode(plain)); plain = ''; } }
+          Array.from(tok).forEach(function (ch) {
+            if (WORD.test(ch)) { flushPlain(); flushUnit(); unit = ch; }
+            else if (unit && MARK.test(ch)) { unit += ch; }
+            else { flushUnit(); plain += ch; }
+          });
+          flushUnit(); flushPlain();
         });
         n.parentNode.replaceChild(frag, n);
       });
@@ -382,7 +399,7 @@ enum ReaderRenderer {
     /// restores the place in scroll, page and word modes alike.
     static let navigationJS = #"""
     (function () {
-      var state = { mode: 'scroll', word: 0, dual: false, punct: false };
+      var state = { mode: 'scroll', word: 0, dual: false, letter: false, punct: false };
       var words = null;
       var observer = null;
       var SKIP = { SCRIPT: 1, STYLE: 1, NOSCRIPT: 1, RT: 1, RP: 1, HEAD: 1, TITLE: 1 };
@@ -525,6 +542,7 @@ enum ReaderRenderer {
         var changed = cfg.mode !== state.mode;
         state.mode = cfg.mode;
         state.dual = !!cfg.dual;
+        state.letter = cfg.match === 'letter';
         state.punct = !!cfg.punct;
         var root = document.documentElement;
         root.classList.toggle('cb-paged', state.mode === 'paged');
@@ -568,7 +586,15 @@ enum ReaderRenderer {
           html = text.split(/([\p{L}\p{N}'’]+)/u).map(function (part) {
             if (!part) return '';
             if (!HAS_WORD.test(part)) return tinted(part);
-            return '<ruby>' + tinted(part) + '<rt>' + tinted(part) + '</rt></ruby>';
+            if (!state.letter) return '<ruby>' + tinted(part) + '<rt>' + tinted(part) + '</rt></ruby>';
+            // Letter mode: one pair per letter or digit; apostrophes stay plain.
+            return Array.from(part).reduce(function (units, ch) {
+              if (units.length && /\p{M}/u.test(ch)) units[units.length - 1] += ch;
+              else units.push(ch);
+              return units;
+            }, []).map(function (u) {
+              return HAS_WORD.test(u) ? '<ruby>' + tinted(u) + '<rt>' + tinted(u) + '</rt></ruby>' : tinted(u);
+            }).join('');
           }).join('');
         } else {
           html = tinted(text);

@@ -26,6 +26,7 @@ final class ReaderModel: NSObject, ObservableObject {
     var scrollFraction: Double = 0
     private var pendingRestore: Restore?
     private var dualApplied = false
+    private var dualMatch: SubMatch = .word
     private var punctApplied = false
     private var settings: ReaderSettings
 
@@ -113,17 +114,27 @@ final class ReaderModel: NSObject, ObservableObject {
         // punctuation need a fresh document: the two passes only nest correctly
         // when the ruby wrap runs first, which is the order the load path uses.
         if (dualApplied && !settings.dualFont)
-            || (settings.dualFont && !dualApplied && punctApplied) {
+            || (settings.dualFont && !dualApplied && punctApplied)
+            || (dualApplied && settings.subMatch != dualMatch) {
             loadCurrentChapter(restoring: .word(word))
             return
         }
         applyStyle()
         if settings.dualFont && !dualApplied {
-            dualApplied = true
-            webView.evaluateJavaScript(ReaderRenderer.dualFontJS, completionHandler: nil)
+            applyDualFont()
         }
         applyPunctuationIfNeeded()
         applyMode()
+    }
+
+    /// The wrap is one-way, so the match it was built with is remembered: changing
+    /// word/letter reloads the chapter, as turning the sub font off does.
+    private func applyDualFont() {
+        dualApplied = true
+        dualMatch = settings.subMatch
+        webView.evaluateJavaScript("window.cbMatch='\(settings.subMatch.rawValue)';",
+                                   completionHandler: nil)
+        webView.evaluateJavaScript(ReaderRenderer.dualFontJS, completionHandler: nil)
     }
 
     /// Tells the page which layout to use. Page and word modes turn pages themselves,
@@ -137,7 +148,7 @@ final class ReaderModel: NSObject, ObservableObject {
         // off it can't be scrolled back — so put it back to the top as the mode changes.
         if mode != .scroll { webView.scrollView.setContentOffset(.zero, animated: false) }
         if mode != .paged { page = -1; pageCount = -1 }
-        let config = "{mode:'\(mode.rawValue)',dual:\(settings.dualFont),punct:\(settings.colorPunctuation)}"
+        let config = "{mode:'\(mode.rawValue)',dual:\(settings.dualFont),match:'\(settings.subMatch.rawValue)',punct:\(settings.colorPunctuation)}"
         webView.evaluateJavaScript("window.cbSetMode(\(config));", completionHandler: nil)
     }
 
@@ -160,8 +171,7 @@ extension ReaderModel: WKNavigationDelegate {
         Task { @MainActor [self] in
             applyStyle()
             if settings.dualFont {
-                dualApplied = true
-                webView.evaluateJavaScript(ReaderRenderer.dualFontJS, completionHandler: nil)
+                applyDualFont()
             }
             applyPunctuationIfNeeded()
             applyMode()
