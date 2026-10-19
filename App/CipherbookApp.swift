@@ -6,6 +6,8 @@ struct CipherbookApp: App {
     @StateObject private var library = Library()
     @StateObject private var fonts = FontLibrary()
     @StateObject private var settings = ReaderSettings()
+    @StateObject private var journal = JournalStore()
+    @StateObject private var journalSettings = JournalSettings()
 
     var body: some Scene {
         WindowGroup {
@@ -13,6 +15,8 @@ struct CipherbookApp: App {
                 .environmentObject(library)
                 .environmentObject(fonts)
                 .environmentObject(settings)
+                .environmentObject(journal)
+                .environmentObject(journalSettings)
         }
     }
 }
