@@ -8,12 +8,19 @@ final class JournalStore: ObservableObject {
     private var saveWork: DispatchWorkItem?
 
     init() {
-        if let raw = try? Data(contentsOf: file), let d = try? JSONDecoder().decode(JournalData.self, from: raw) {
-            data = d
-        } else {
-            data = JournalData(deviceID: "ios-" + UUID().uuidString.lowercased().prefix(24))
-            save()
+        let fm = FileManager.default
+        if fm.fileExists(atPath: file.path) {
+            if let raw = try? Data(contentsOf: file), let d = try? JSONDecoder().decode(JournalData.self, from: raw) {
+                data = d
+                return
+            }
+            // Unreadable or undecodable: set it aside for recovery rather than overwriting it.
+            let aside = file.deletingLastPathComponent()
+                .appendingPathComponent("journal.corrupt-\(Int(Date().timeIntervalSince1970)).json")
+            try? fm.moveItem(at: file, to: aside)
         }
+        data = JournalData(deviceID: "ios-" + UUID().uuidString.lowercased().prefix(24))
+        save()
     }
 
     private var now: Int64 { Int64(Date().timeIntervalSince1970 * 1000) }
@@ -74,28 +81,18 @@ final class JournalStore: ObservableObject {
         for p in out where data.pages[p.id] != p { put(p) }
     }
 
-    /// Done: an entry with no text at all is discarded entirely (never synced, never shown).
+    /// Done: an entry with no text at all is deleted. It is tombstoned, not just dropped, because a sync
+    /// may already have pushed it while it was open.
     func finishEntry(_ id: String) {
-        let live = pages(of: id)
-        if live.allSatisfy({ $0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
-            discard(id)
+        if data.isBlank(entryID: id) {
+            data.tombstone(entryID: id, now: now)
+            save()
         }
-    }
-
-    private func discard(_ id: String) {
-        for p in data.pages.values where p.entryId == id {
-            data.pages[p.id] = nil; data.pending.remove("page/\(p.id)")
-        }
-        data.entries[id] = nil; data.pending.remove("entry/\(id)")
-        save()
     }
 
     func deleteEntry(_ id: String) {
-        guard var e = data.entries[id] else { return }
-        for var p in data.pages.values where p.entryId == id && !p.deleted {
-            p.deleted = true; p.updatedAt = now; p.updatedBy = device; put(p)
-        }
-        e.deleted = true; touch(entry: e)
+        data.tombstone(entryID: id, now: now)
+        save()
     }
 
     // MARK: wall

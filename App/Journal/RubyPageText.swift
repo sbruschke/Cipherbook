@@ -50,7 +50,7 @@ struct RubyPageText: UIViewRepresentable {
 
     /// Lays the text out row by row. In each row the free segments (box minus `exclusion`) are filled
     /// left to right, so text reads across both sides of the doodle in order. A hard newline ends the row.
-    static func layout(_ a: NSAttributedString, width: CGFloat, exclusion: CGRect?) -> (lines: [PlacedLine], height: CGFloat) {
+    static func layout(_ a: NSAttributedString, width: CGFloat, exclusion: CGRect?, stopAfter: CGFloat? = nil) -> (lines: [PlacedLine], height: CGFloat) {
         let ts = CTTypesetterCreateWithAttributedString(a)
         let length = a.length
         let ns = a.string as NSString
@@ -64,6 +64,7 @@ struct RubyPageText: UIViewRepresentable {
             return (asc, desc, lead)
         }
         while idx < length, guardRows < 10_000 {
+            if let limit = stopAfter, y > limit { break }       // `fits` only needs to know it overflowed
             guardRows += 1
             // Probe the row height with a full-width line.
             let probeCount = max(1, CTTypesetterSuggestLineBreak(ts, idx, Double(width)))
@@ -94,7 +95,8 @@ struct RubyPageText: UIViewRepresentable {
 
     /// Pagination predicate: does `text` fit one page at this size/fonts (and around `exclusion`)?
     static func fits(_ text: String, main: UIFont, sub: UIFont?, size: CGSize, exclusion: CGRect? = nil) -> Bool {
-        layout(attributed(text, main: main, sub: sub, ink: .black), width: size.width, exclusion: exclusion).height <= size.height
+        layout(attributed(text, main: main, sub: sub, ink: .black), width: size.width, exclusion: exclusion,
+               stopAfter: size.height).height <= size.height
     }
 
     final class RubyView: UIView {

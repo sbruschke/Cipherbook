@@ -32,7 +32,7 @@ struct EntryEditorView: View {
                                      font: JournalFonts.ui(settings.mainFontID, size: settings.fontSize, fonts: fonts),
                                      ink: UIColor(Color(hex: settings.effectiveInkHex)),
                                      exclusion: wrapRect(for: page),
-                                     onChange: { newText in change(newText, page: page) })
+                                     onChange: { newText, atEnd in change(newText, atEnd: atEnd, page: page) })
                             .frame(width: Self.textBox.width, height: Self.textBox.height)
                     }
                     .frame(width: PageCardView.nominal.width, height: PageCardView.nominal.height)
@@ -79,7 +79,7 @@ struct EntryEditorView: View {
                       width: (f.maxX - f.minX) * w, height: (f.maxY - f.minY) * h)
     }
 
-    private func change(_ newText: String, page: Page) {
+    private func change(_ newText: String, atEnd: Bool, page: Page) {
         let before = store.pages(of: entryID).count
         let main = JournalFonts.ui(settings.mainFontID, size: settings.fontSize, fonts: fonts)
         let sub = settings.dualFont ? JournalFonts.ui(settings.subFontID, size: settings.fontSize * 0.55, fonts: fonts) : nil
@@ -89,7 +89,7 @@ struct EntryEditorView: View {
         }
         let after = store.pages(of: entryID).count
         // Typing past the bottom of the last page spills into a new one: follow the cursor there.
-        if after > before, pageIndex == before - 1 { pageIndex = after - 1 }
+        if atEnd, after > before, pageIndex == before - 1 { pageIndex = after - 1 }
         scheduleArtRefresh(newText)
     }
 
@@ -111,7 +111,7 @@ struct PageTextView: UIViewRepresentable {
     let font: UIFont
     let ink: UIColor
     let exclusion: CGRect?
-    let onChange: (String) -> Void
+    let onChange: (String, Bool) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -139,9 +139,11 @@ struct PageTextView: UIViewRepresentable {
             v.text = text
             v.selectedRange = NSRange(location: (text as NSString).length, length: 0)
         } else if v.text != text {
-            // The store reflowed this page (overflow moved on): show its new text, keep the caret at the end.
+            // The store reflowed this page (words moved to or from a neighbour): show its new text and
+            // keep the caret where the user was typing, clamped to the new length.
+            let caret = v.selectedRange.location
             v.text = text
-            v.selectedRange = NSRange(location: (text as NSString).length, length: 0)
+            v.selectedRange = NSRange(location: min(caret, (text as NSString).length), length: 0)
         }
     }
 
@@ -149,6 +151,9 @@ struct PageTextView: UIViewRepresentable {
         var parent: PageTextView
         var shownPageID = ""
         init(_ parent: PageTextView) { self.parent = parent }
-        func textViewDidChange(_ textView: UITextView) { parent.onChange(textView.text) }
+        func textViewDidChange(_ textView: UITextView) {
+            let len = (textView.text as NSString).length
+            parent.onChange(textView.text, textView.selectedRange.location >= len)
+        }
     }
 }
