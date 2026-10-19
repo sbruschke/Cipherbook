@@ -12,6 +12,10 @@ public struct PresetStyle: Equatable {
     public let inkHex: String
     /// 0 (pristine) … 1 (heavily worn): drives tears, stains and creases.
     public let wear: Double
+
+    public init(baseHex: String, edgeHex: String, inkHex: String, wear: Double) {
+        self.baseHex = baseHex; self.edgeHex = edgeHex; self.inkHex = inkHex; self.wear = wear
+    }
 }
 
 public enum Preset: String, CaseIterable, Codable {
