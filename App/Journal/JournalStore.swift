@@ -30,7 +30,19 @@ final class JournalStore: ObservableObject {
         data.entries.values.filter { !$0.deleted }.sorted { ($0.createdAt, $0.id) < ($1.createdAt, $1.id) }
     }
 
+    /// Reading order (what the desktop notes use).
     func pages(of entryID: String) -> [Page] { data.livePages(of: entryID) }
+
+    /// The pile bottom → top as it lies on the wall: reading order rotated by the entry's turns.
+    func pile(of entryID: String) -> [Page] {
+        StackOps.pile(data.livePages(of: entryID), turned: data.entries[entryID]?.turned)
+    }
+
+    /// Turns the pile (`+1`: the top page goes to the bottom). Never reorders the pages themselves.
+    func turnPile(_ entryID: String, by steps: Int) {
+        data.turnPile(entryID: entryID, by: steps, now: now)
+        save()
+    }
 
     // MARK: persistence
     private func save() {
@@ -108,12 +120,6 @@ final class JournalStore: ObservableObject {
         let before = data.entries
         let after = WallLayout.drop(id, at: p, snap: snap, in: Array(data.entries.values))
         for e in after where before[e.id] != e { touch(entry: e) }
-    }
-
-    func reorder(entryID: String, from: Int, to: Int) {
-        for p in StackOps.move(pages(of: entryID), from: from, to: to) where data.pages[p.id]?.order != p.order {
-            var p = p; p.updatedAt = now; p.updatedBy = device; put(p)
-        }
     }
 
     func addFastener(_ kind: FastenerKind, to id: String) {

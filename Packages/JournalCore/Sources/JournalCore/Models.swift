@@ -13,19 +13,22 @@ public struct Entry: Codable, Equatable, Identifiable {
     public var deleted: Bool
     public var updatedAt: Int64
     public var updatedBy: String
+    /// How many times the pile has been turned (the top page sent to the bottom). Browsing the pile never
+    /// changes the pages' `order`, which is the reading order the desktop notes use.
+    public var turned: Int?
 
     enum CodingKeys: String, CodingKey {
-        case id, title, x, y, rot, fasteners, deleted
+        case id, title, x, y, rot, fasteners, deleted, turned
         case createdAt = "created_at", freeX = "free_x", freeY = "free_y"
         case updatedAt = "updated_at", updatedBy = "updated_by"
     }
 
     public init(id: String, createdAt: Int64, title: String?, x: Double, y: Double, rot: Double,
                 freeX: Double?, freeY: Double?, fasteners: [Fastener], deleted: Bool,
-                updatedAt: Int64, updatedBy: String) {
+                updatedAt: Int64, updatedBy: String, turned: Int? = nil) {
         self.id = id; self.createdAt = createdAt; self.title = title; self.x = x; self.y = y
         self.rot = rot; self.freeX = freeX; self.freeY = freeY; self.fasteners = fasteners
-        self.deleted = deleted; self.updatedAt = updatedAt; self.updatedBy = updatedBy
+        self.deleted = deleted; self.updatedAt = updatedAt; self.updatedBy = updatedBy; self.turned = turned
     }
 }
 
