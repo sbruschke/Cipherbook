@@ -7,6 +7,10 @@ public struct ShuffleKeyframe: Equatable {
     public var offsetX: Double
     public var layer: Int
     public var lift: Double
+
+    public init(t: Double, offsetX: Double, layer: Int, lift: Double) {
+        self.t = t; self.offsetX = offsetX; self.layer = layer; self.lift = lift
+    }
 }
 
 public enum StackOps {
@@ -33,5 +37,20 @@ public enum StackOps {
             ShuffleKeyframe(t: 0.75, offsetX: clearance, layer: to,   lift: 0),
             ShuffleKeyframe(t: 1.00, offsetX: 0,         layer: to,   lift: 0),
         ]
+    }
+
+    /// The page's state at progress `t` (0…1): offset and lift interpolate linearly between the two
+    /// surrounding keyframes; the layer is the earlier keyframe's (it steps, it never blends).
+    public static func sample(_ path: [ShuffleKeyframe], at t: Double) -> ShuffleKeyframe {
+        guard let first = path.first, let last = path.last else {
+            return ShuffleKeyframe(t: 0, offsetX: 0, layer: 0, lift: 0)
+        }
+        if t <= first.t { return first }
+        if t >= last.t { return last }
+        let i = path.lastIndex(where: { $0.t <= t })!
+        let a = path[i], b = path[i + 1]
+        let f = (t - a.t) / (b.t - a.t)
+        return ShuffleKeyframe(t: t, offsetX: a.offsetX + (b.offsetX - a.offsetX) * f,
+                               layer: a.layer, lift: a.lift + (b.lift - a.lift) * f)
     }
 }
