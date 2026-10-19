@@ -23,6 +23,7 @@ struct PageCardView: View {
             subFont: settings.dualFont ? JournalFonts.ui(settings.subFontID, size: settings.fontSize * 0.55, fonts: fonts) : nil,
             art: settings.wordArt ? WordArtCache.drawing(text: artText ?? page.text, seed: page.lookSeedValue) : nil,
             artStrength: settings.wordArtStrength,
+            artColor: Color(hex: settings.wordArtHex),
             exclusion: settings.wordArt && settings.wrapAroundArt ? WordArt.placement(seed: page.lookSeedValue).frame : nil,
             lift: lift, size: Self.nominal))
     }

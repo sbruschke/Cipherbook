@@ -38,6 +38,7 @@ struct JournalSettingsView: View {
                         Text("Ink strength").font(.footnote).foregroundStyle(.secondary)
                         Slider(value: $settings.wordArtStrength, in: 0...1)
                     }
+                    ColorPicker("Doodle colour", selection: hexBinding($settings.wordArtHex))
                     Toggle("Wrap text around it", isOn: $settings.wrapAroundArt)
                 }
             }

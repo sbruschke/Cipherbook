@@ -62,14 +62,14 @@ struct ParchmentPage: View {
                              with: .color(edge.opacity(sp.opacity)))
                 }
                 if let art = spec.art, !art.isEmpty {
-                    let inkUI = UIColor(spec.ink), edgeUI = UIColor(edge)
+                    let inkUI = UIColor(spec.ink), accentUI = UIColor(spec.artColor)
                     func pt(_ p: Pt) -> CGPoint {
                         let q = art.pagePoint(p); return CGPoint(x: q.x * sz.width, y: q.y * sz.height)
                     }
                     for s in art.strokes {
-                        // Early words lean toward the paper's edge-ink, later ones toward the writing ink
+                        // Early words are inked in the accent colour, later ones drift toward the writing ink
                         // (the original's red→black ramp), denser as the page goes on.
-                        let color = Color(uiColor: edgeUI.mix(inkUI, s.tone))
+                        let color = Color(uiColor: accentUI.mix(inkUI, s.tone))
                             .opacity((0.28 + 0.4 * s.tone) * spec.artStrength)
                         var p = Path()
                         p.move(to: pt(s.a)); p.addQuadCurve(to: pt(s.b), control: pt(s.c))
