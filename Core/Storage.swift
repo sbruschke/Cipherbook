@@ -18,6 +18,12 @@ enum Storage {
         return url
     }
 
+    static var journalDir: URL {
+        let url = documents.appendingPathComponent("Journal", isDirectory: true)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+
     /// Fonts are copied into each extracted book so the WKWebView's
     /// file read-access scope covers them and `@font-face` URLs resolve.
     static let bookFontDirName = "_cbfonts"

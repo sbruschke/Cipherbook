@@ -20,6 +20,8 @@ packages:
     from: 0.9.19
   KeyboardCore:
     path: Packages/KeyboardCore
+  JournalCore:
+    path: Packages/JournalCore
 
 targets:
   Cipherbook:
@@ -35,6 +37,7 @@ targets:
         buildPhase: resources
     dependencies:
       - package: ZIPFoundation
+      - package: JournalCore
       - target: CipherKeys
     # Merged with the generated Info.plist; only what build settings can't express.
     info:
