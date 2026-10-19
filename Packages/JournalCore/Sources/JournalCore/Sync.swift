@@ -120,6 +120,14 @@ public extension JournalData {
     /// result keeps the record pending for the next sync.
     mutating func settle(pushed: [SyncChange], results: [PushResult]) {
         for (i, ch) in pushed.enumerated() where i < results.count {
+            // A record edited while its push was in flight is newer than what was sent: leave it
+            // pending so the edit uploads on the next sync.
+            let current: RecordVersion?
+            switch ch.record {
+            case .entry(let e): current = entries[e.id].map { RecordVersion(updatedAt: $0.updatedAt, updatedBy: $0.updatedBy) }
+            case .page(let p):  current = pages[p.id].map { RecordVersion(updatedAt: $0.updatedAt, updatedBy: $0.updatedBy) }
+            }
+            if let current, current != ch.record.version { continue }
             pending.remove("\(ch.record.table)/\(ch.record.id)")
         }
         // Keys whose record no longer exists can never be pushed: drop them.

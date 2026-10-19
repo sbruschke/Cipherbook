@@ -25,7 +25,14 @@ public enum Paginator {
         var i = 0
         while i < toks.count {
             // Largest k such that toks[i..<i+k] fits.
-            var lo = 0, hi = toks.count - i
+            // Gallop (1, 2, 4 …) to an upper bound first, so the cost of a page depends on the
+            // page, not on how much text follows it; then binary search inside the bracket.
+            let remaining = toks.count - i
+            var lo = 0, hi = remaining
+            var step = 1
+            while step < remaining {
+                if fits(toks[i..<(i + step)].joined()) { lo = step; step *= 2 } else { hi = step - 1; break }
+            }
             while lo < hi {
                 let mid = (lo + hi + 1) / 2
                 if fits(toks[i..<(i + mid)].joined()) { lo = mid } else { hi = mid - 1 }

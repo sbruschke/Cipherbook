@@ -87,3 +87,64 @@ final class SyncTests: XCTestCase {
         XCTAssertTrue(d.pending.isEmpty)
     }
 }
+
+final class SettleRaceTests: XCTestCase {
+    private func entry(_ id: String, at: Int64) -> Entry {
+        Entry(id: id, createdAt: 1, title: nil, x: 0, y: 0, rot: 0, freeX: nil, freeY: nil,
+              fasteners: [], deleted: false, updatedAt: at, updatedBy: "dev-a")
+    }
+    private let ok = { (t: String, id: String) in PushResult(table: t, id: id, status: "accepted", serverSeq: 1, reason: nil) }
+
+    func testEntryEditedWhileThePushWasInFlightStaysPending() {
+        var d = JournalData(deviceID: "dev-a")
+        d.entries["e1"] = entry("e1", at: 5); d.pending = ["entry/e1"]
+        let pushed = d.pendingChanges(limit: 10)
+        d.entries["e1"]!.updatedAt = 9
+        d.settle(pushed: pushed, results: [ok("entry", "e1")])
+        XCTAssertEqual(d.pending, ["entry/e1"])
+    }
+
+    func testPageEditedWhileThePushWasInFlightStaysPending() {
+        var d = JournalData(deviceID: "dev-a")
+        d.pages["p1"] = Page(id: "p1", entryId: "e1", order: 0, text: "a", lookSeed: "1", deleted: false, updatedAt: 5, updatedBy: "dev-a")
+        d.pending = ["page/p1"]
+        let pushed = d.pendingChanges(limit: 10)
+        d.pages["p1"]!.text = "ab"; d.pages["p1"]!.updatedAt = 6
+        d.settle(pushed: pushed, results: [ok("page", "p1")])
+        XCTAssertEqual(d.pending, ["page/p1"])
+    }
+}
+
+final class EntryLifecycleTests: XCTestCase {
+    private func data() -> JournalData {
+        var d = JournalData(deviceID: "dev-a")
+        d.entries["e1"] = Entry(id: "e1", createdAt: 1, title: nil, x: 0, y: 0, rot: 0, freeX: nil, freeY: nil,
+                                fasteners: [], deleted: false, updatedAt: 1, updatedBy: "dev-a")
+        d.pages["p1"] = Page(id: "p1", entryId: "e1", order: 0, text: "  \n", lookSeed: "1", deleted: false, updatedAt: 1, updatedBy: "dev-a")
+        d.pages["p2"] = Page(id: "p2", entryId: "e1", order: 1, text: "", lookSeed: "2", deleted: false, updatedAt: 1, updatedBy: "dev-a")
+        return d
+    }
+
+    func testBlankDetection() {
+        var d = data()
+        XCTAssertTrue(d.isBlank(entryID: "e1"))
+        d.pages["p2"]!.text = "hello"
+        XCTAssertFalse(d.isBlank(entryID: "e1"))
+        XCTAssertTrue(JournalData(deviceID: "dev-a").isBlank(entryID: "nope"))
+    }
+
+    func testTombstoneStampsAndQueuesEverything() {
+        var d = data()
+        d.tombstone(entryID: "e1", now: 50)
+        XCTAssertTrue(d.entries["e1"]!.deleted); XCTAssertEqual(d.entries["e1"]!.updatedAt, 50)
+        XCTAssertTrue(d.pages["p1"]!.deleted && d.pages["p2"]!.deleted)
+        XCTAssertEqual(d.pending, ["entry/e1", "page/p1", "page/p2"])
+        XCTAssertTrue(d.livePages(of: "e1").isEmpty)
+    }
+
+    func testTombstoneOfUnknownEntryIsANoOp() {
+        var d = JournalData(deviceID: "dev-a")
+        d.tombstone(entryID: "nope", now: 1)
+        XCTAssertTrue(d.pending.isEmpty)
+    }
+}

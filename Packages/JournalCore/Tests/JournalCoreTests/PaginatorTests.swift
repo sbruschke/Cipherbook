@@ -54,3 +54,13 @@ final class PaginatorTests: XCTestCase {
         XCTAssertEqual(fitScale(contentHeight: 100, available: 0), 0.7, accuracy: 1e-9)
     }
 }
+
+final class PaginatorCostTests: XCTestCase {
+    func testWorkPerPageDoesNotScaleWithTheRemainingText() {
+        let text = (0..<20_000).map { _ in "word" }.joined(separator: " ")
+        var chars = 0
+        let pages = Paginator.paginate(text) { s in chars += s.count; return s.count <= 40 }
+        XCTAssertEqual(pages.joined(), text)
+        XCTAssertLessThan(chars, 60 * text.count)       // was ~pages x text/2 before galloping
+    }
+}
