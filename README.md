@@ -26,6 +26,14 @@ directly underneath it (WebKit ruby annotations, positioned under the text).
   modifiers). Custom files are staged into the App Group, so they need *Allow
   Full Access* the same way the key font does.
 
+- **Journal** (library › book icon): type entries onto unique parchment pages that stack
+  per sitting; finishing one zooms out to a wall where stacks can be dragged freely or snapped
+  to a grid, fanned out and shuffled like a physical pile, and pinned, stapled or taped. Pages
+  are themable (parchment style, ink, fonts, optional sub font under each word) and each carries
+  a hand-inked doodle built from its own words with the VectorCompression legacy vector table —
+  under the text, or with the text wrapping around it. Entries sync to a self-hosted
+  `journal-api` (see below) and are ingested on the desktop for AI recall.
+
 ### Keyboard install notes
 
 - Keyboards are app extensions, which **LiveContainer cannot register**.
@@ -38,6 +46,14 @@ directly underneath it (WebKit ruby annotations, positioned under the text).
   bundle's Info.plist — `SharedKeyboard.groupID` reads that back.
 - Enable it in Settings › General › Keyboard › Keyboards › Add New Keyboard,
   then turn on *Allow Full Access* so the keyboard can read the font file.
+
+## Journal sync
+
+Journal › gear: set the server (default `https://journal.dxshdw.dev`) and the token. The server,
+`journal-api`, lives in the `pi-infra` repo (Flask + SQLite on the Pi, per-record last-write-wins,
+nightly backups: 30 daily + one per month). On the desktop, `journal-pull` (a systemd user timer in
+the same repo) writes each entry to `~/knowledge/journal/` and runs `kb-ingest`. The Swift side is
+`Packages/JournalCore` (`scripts/test-journal-core.sh` runs its tests on Linux in Docker).
 
 ## Build
 

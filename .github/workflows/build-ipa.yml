@@ -24,6 +24,9 @@ jobs:
       - name: Test KeyboardCore
         run: swift test --package-path Packages/KeyboardCore
 
+      - name: Test JournalCore
+        run: swift test --package-path Packages/JournalCore
+
       - name: Test reader page scripts (WebKit)
         working-directory: Tests/ReaderJS
         env:
