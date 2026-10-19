@@ -7,6 +7,7 @@ struct LibraryView: View {
 
     @State private var importing = false
     @State private var showSettings = false
+    @State private var showJournal = false
     @State private var path: [Book] = []
 
     var body: some View {
@@ -38,6 +39,11 @@ struct LibraryView: View {
                         Image(systemName: "textformat")
                     }
                 }
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button { showJournal = true } label: {
+                        Image(systemName: "book.closed")
+                    }
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button { importing = true } label: {
                         Image(systemName: "plus")
@@ -46,6 +52,9 @@ struct LibraryView: View {
             }
             .sheet(isPresented: $showSettings) {
                 NavigationStack { ReaderSettingsView() }
+            }
+            .fullScreenCover(isPresented: $showJournal) {
+                JournalRootView()
             }
             .onOpenURL(perform: open)
             .fileImporter(isPresented: $importing,

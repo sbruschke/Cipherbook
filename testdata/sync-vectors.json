@@ -1,0 +1,11 @@
+{
+  "newer": [
+    {"name": "later wins",            "incoming": [200, "dev-a"], "stored": [100, "dev-z"], "newer": true},
+    {"name": "earlier loses",         "incoming": [100, "dev-z"], "stored": [200, "dev-a"], "newer": false},
+    {"name": "tie, higher id wins",   "incoming": [100, "dev-b"], "stored": [100, "dev-a"], "newer": true},
+    {"name": "tie, lower id loses",   "incoming": [100, "dev-a"], "stored": [100, "dev-b"], "newer": false},
+    {"name": "exact replay not newer","incoming": [100, "dev-a"], "stored": [100, "dev-a"], "newer": false},
+    {"name": "no stored row",         "incoming": [1, "dev-a"],   "stored": null,           "newer": true}
+  ],
+  "big_seed": "18446744073709551615"
+}
