@@ -10,6 +10,7 @@ struct PageRenderSpec {
     var subFont: UIFont?          // nil ⇒ single-font
     var art: WordArtDrawing?      // word-art doodle, drawn under the text
     var artStrength: Double       // 0…1 multiplier on the doodle's ink opacity
+    var artColor: Color           // accent for the doodle's first words
     var exclusion: PageRect?      // page-unit frame the text wraps around; nil ⇒ text runs under the doodle
     var lift: Double              // 0…1, drives shadow height
     var size: CGSize              // nominal page size before widthScale

@@ -1,8 +1,9 @@
 import SwiftUI
 import JournalCore
 
-/// A stack laid out as a physical pile. Pages keep their height order; moving one slides it out from
-/// under the pages above it, lifts it clear, carries it across and lowers it at its new height.
+/// A stack laid out as a physical pile. Slide the top page sideways and it goes to the bottom, revealing
+/// the next one; the move is physical — the page slides out from the top, drops behind the pile while
+/// clear of it, and slides back in underneath.
 struct StackFanView: View {
     @EnvironmentObject var store: JournalStore
     @Environment(\.dismiss) private var dismiss
@@ -10,21 +11,22 @@ struct StackFanView: View {
     var onEdit: (Int) -> Void
 
     private static let clearance: CGFloat = 270        // a page width plus the pile's jitter
-    private static let duration = 1.3
+    private static let duration = 1.1
 
     private struct Shuffle {
         let from: Int, to: Int
         let path: [ShuffleKeyframe]
-        let startDrag: CGFloat
+        let startDrag: CGFloat      // where the finger left the page (signed)
+        let dir: CGFloat            // +1 slides out to the right, -1 to the left
     }
 
     @State private var shuffle: Shuffle?
     @State private var progress = 0.0
-    @State private var dragIndex: Int?
-    @State private var dragX: CGFloat = 0
+    @State private var dragX: CGFloat = 0        // live drag of the top page, signed
 
     var body: some View {
         let pages = store.pages(of: entryID)
+        let top = pages.count - 1
         ZStack {
             Color.black.opacity(0.78).ignoresSafeArea()
             ZStack {
@@ -33,20 +35,17 @@ struct StackFanView: View {
                     PageCardView(page: page, lift: s.lift)
                         .offset(x: s.offsetX + jitter(page).width, y: jitter(page).height)
                         .zIndex(s.z)
-                        .onTapGesture { if shuffle == nil { onEdit(i) } }
-                        .gesture(pullOut(i, count: pages.count))
-                        .contextMenu {
-                            Button("Bring to front") { play(from: i, to: pages.count - 1, count: pages.count) }
-                                .disabled(i == pages.count - 1)
-                            Button("Send to back") { play(from: i, to: 0, count: pages.count) }
-                                .disabled(i == 0)
-                            Button("Move up") { play(from: i, to: i + 1, count: pages.count) }
-                                .disabled(i == pages.count - 1)
-                            Button("Move down") { play(from: i, to: i - 1, count: pages.count) }
-                                .disabled(i == 0)
-                            Button("Edit this page") { onEdit(i) }
-                        }
                 }
+            }
+            .contentShape(Rectangle())
+            .onTapGesture { if shuffle == nil, top >= 0 { onEdit(top) } }
+            .gesture(slide(count: pages.count))
+            .contextMenu {
+                if pages.count > 1 {
+                    Button("Send this page to the back") { play(from: top, to: 0, count: pages.count, dir: 1) }
+                    Button("Bring the bottom page to the front") { play(from: 0, to: top, count: pages.count, dir: 1) }
+                }
+                if top >= 0 { Button("Edit this page") { onEdit(top) } }
             }
             VStack {
                 HStack {
@@ -57,7 +56,8 @@ struct StackFanView: View {
                 }
                 .padding()
                 Spacer()
-                Text("Drag a page sideways to pull it out · press and hold for more")
+                Text(pages.count > 1 ? "Slide the top page aside to turn to the next · tap to write"
+                                     : "Tap the page to write")
                     .font(.caption).foregroundColor(.white.opacity(0.7)).padding(.bottom, 12)
             }
         }
@@ -71,14 +71,16 @@ struct StackFanView: View {
         if let sh = shuffle {
             let kf = StackOps.sample(sh.path, at: progress)
             if i == sh.from {
-                let slide = max(CGFloat(kf.offsetX), sh.startDrag * CGFloat(max(0, 1 - progress / 0.3)))
+                // Ease from where the finger let go into the scripted slide-out.
+                let carried = abs(sh.startDrag) * CGFloat(max(0, 1 - progress / 0.3))
+                let slide = max(CGFloat(kf.offsetX), carried) * sh.dir
                 return PageState(offsetX: slide, lift: kf.lift, z: Double(kf.layer) + 0.5)
             }
             // The others close up around the moving page: their rank among the rest, shifted past its layer.
             let rank = i < sh.from ? i : i - 1
             return PageState(offsetX: 0, lift: 0, z: Double(rank < kf.layer ? rank : rank + 1))
         }
-        if dragIndex == i { return PageState(offsetX: dragX, lift: 0.4, z: Double(i) + 0.5) }
+        if i == count - 1 { return PageState(offsetX: dragX, lift: dragX == 0 ? 0 : 0.5, z: Double(i)) }
         return PageState(offsetX: 0, lift: 0, z: Double(i))
     }
 
@@ -87,31 +89,32 @@ struct StackFanView: View {
         return CGSize(width: g.range(-5, 5), height: g.range(-5, 5))
     }
 
-    // MARK: gestures and playback
+    // MARK: gesture and playback
 
-    private func pullOut(_ i: Int, count: Int) -> some Gesture {
+    /// Sliding anywhere on the pile moves the top page (the only one a finger can actually reach).
+    private func slide(count: Int) -> some Gesture {
         DragGesture(minimumDistance: 10)
             .onChanged { v in
-                guard shuffle == nil else { return }
-                dragIndex = i
-                dragX = max(0, v.translation.width)
+                guard shuffle == nil, abs(v.translation.width) > abs(v.translation.height) else { return }
+                dragX = v.translation.width
             }
             .onEnded { v in
                 guard shuffle == nil else { return }
-                let released = max(0, v.translation.width)
-                dragIndex = nil; dragX = 0
-                if released > Self.clearance * 0.5, i < count - 1 {
-                    play(from: i, to: count - 1, count: count, startDrag: released)
+                let released = dragX
+                dragX = 0
+                if count > 1, let dir = PageTurn.direction(dx: Double(v.translation.width), dy: Double(v.translation.height),
+                                                           predictedDx: Double(v.predictedEndTranslation.width)) {
+                    play(from: count - 1, to: 0, count: count, startDrag: released, dir: CGFloat(dir))
                 }
             }
     }
 
-    private func play(from: Int, to: Int, count: Int, startDrag: CGFloat = 0) {
-        guard shuffle == nil, from != to, (0..<count).contains(to) else { return }
+    private func play(from: Int, to: Int, count: Int, startDrag: CGFloat = 0, dir: CGFloat) {
+        guard shuffle == nil, from != to, (0..<count).contains(from), (0..<count).contains(to) else { return }
         let path = StackOps.shufflePath(count: count, from: from, to: to, clearance: Double(Self.clearance))
         guard !path.isEmpty else { return }
         progress = 0
-        shuffle = Shuffle(from: from, to: to, path: path, startDrag: startDrag)
+        shuffle = Shuffle(from: from, to: to, path: path, startDrag: startDrag, dir: dir)
         Task { @MainActor in
             let start = Date()
             while true {

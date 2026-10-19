@@ -16,6 +16,8 @@ final class JournalSettings: ObservableObject {
     /// false (default): the doodle sits under the text. true: text wraps around the doodle's frame.
     @Published var wrapAroundArt: Bool { didSet { d.set(wrapAroundArt, forKey: "j.artWrap") } }
     @Published var wordArtStrength: Double { didSet { d.set(wordArtStrength, forKey: "j.artStrength") } }
+    /// The accent the doodle's first words are inked in; later words drift toward the writing ink.
+    @Published var wordArtHex: String { didSet { d.set(wordArtHex, forKey: "j.artHex") } }
     @Published var serverURL: String { didSet { d.set(serverURL, forKey: "j.server") } }
 
     var token: String {
@@ -36,6 +38,7 @@ final class JournalSettings: ObservableObject {
         wordArt = d.object(forKey: "j.art") as? Bool ?? true
         wrapAroundArt = d.object(forKey: "j.artWrap") as? Bool ?? false
         wordArtStrength = d.object(forKey: "j.artStrength") as? Double ?? 0.8
+        wordArtHex = d.string(forKey: "j.artHex") ?? "#03A3FF"
         serverURL = d.string(forKey: "j.server") ?? "https://journal.dxshdw.dev"
     }
 }

@@ -57,14 +57,12 @@ struct JournalRootView: View {
         }
         .confirmationDialog("Stack", isPresented: Binding(get: { menuFor != nil }, set: { if !$0 { menuFor = nil } }),
                             presenting: menuFor) { ref in
-            Button("Add a pin") { store.addFastener(.pin, to: ref.id) }
-            Button("Add a staple") { store.addFastener(.staple, to: ref.id) }
-            Button("Add tape") { store.addFastener(.tape, to: ref.id) }
-            Button("Remove last fastener") {
-                if let e = store.data.entries[ref.id], !e.fasteners.isEmpty {
-                    store.removeFastener(at: e.fasteners.count - 1, from: ref.id)
-                }
-            }
+            Button("Change to a pin") { store.setFastener(.pin, for: ref.id) }
+            Button("Change to a staple") { store.setFastener(.staple, for: ref.id) }
+            Button("Change to tape") { store.setFastener(.tape, for: ref.id) }
+            Button("Randomize the fastener") { store.setFastener(nil, for: ref.id) }
+            Button("Add another fastener") { store.addFastener(FastenerKind.allCases.randomElement() ?? .pin, to: ref.id) }
+            Button("Remove fasteners") { store.clearFasteners(of: ref.id) }
             Button("Delete entry", role: .destructive) { store.deleteEntry(ref.id) }
             Button("Cancel", role: .cancel) {}
         }

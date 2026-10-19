@@ -61,7 +61,8 @@ final class JournalStore: ObservableObject {
         var rng = SystemRandomNumberGenerator()
         let e = Entry(id: id, createdAt: now, title: nil, x: x, y: 0,
                       rot: Double.random(in: -3...3, using: &rng), freeX: nil, freeY: nil,
-                      fasteners: [Fastener(kind: .pin, seed: String(UInt64.random(in: 0...UInt64.max)))],
+                      fasteners: [Fastener(kind: FastenerKind.allCases.randomElement() ?? .pin,
+                                   seed: String(UInt64.random(in: 0...UInt64.max)))],
                       deleted: false, updatedAt: now, updatedBy: device)
         put(e)
         let p = Page(id: UUID().uuidString.lowercased(), entryId: id, order: 0, text: "",
@@ -119,6 +120,19 @@ final class JournalStore: ObservableObject {
         guard var e = data.entries[id] else { return }
         e.fasteners.append(Fastener(kind: kind, seed: String(UInt64.random(in: 0...UInt64.max))))
         touch(entry: e)
+    }
+
+    /// Replaces the stack's fasteners with a single new one of `kind` (nil ⇒ a random kind, new look).
+    func setFastener(_ kind: FastenerKind?, for id: String) {
+        guard var e = data.entries[id] else { return }
+        e.fasteners = [Fastener(kind: kind ?? FastenerKind.allCases.randomElement() ?? .pin,
+                                seed: String(UInt64.random(in: 0...UInt64.max)))]
+        touch(entry: e)
+    }
+
+    func clearFasteners(of id: String) {
+        guard var e = data.entries[id], !e.fasteners.isEmpty else { return }
+        e.fasteners = []; touch(entry: e)
     }
 
     func removeFastener(at index: Int, from id: String) {
