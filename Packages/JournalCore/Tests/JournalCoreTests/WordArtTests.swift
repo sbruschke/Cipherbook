@@ -70,7 +70,7 @@ final class WordArtTests: XCTestCase {
             for seed in 0..<40 {
                 let d = WordArt.make(text: t, seed: UInt64(seed) &* 2654435761 &+ UInt64(i))
                 for s in d.strokes {
-                    for p in [s.a, s.b, s.c] + [s.barbL, s.barbR].compactMap({ $0 }) {
+                    for p in [s.a, s.b, s.c] {
                         let q = d.pagePoint(p)
                         XCTAssertTrue((-1e-9...1 + 1e-9).contains(q.x) && (-1e-9...1 + 1e-9).contains(q.y),
                                       "off page: \(q) seed \(seed) text \(i)")
@@ -102,7 +102,7 @@ final class WordArtTests: XCTestCase {
             XCTAssertGreaterThanOrEqual(f.minX, 0); XCTAssertLessThanOrEqual(f.maxX, 1)
             XCTAssertGreaterThanOrEqual(f.minY, 0); XCTAssertLessThanOrEqual(f.maxY, 1)
             for s in d.strokes {
-                for p in [s.a, s.b, s.c] + [s.barbL, s.barbR].compactMap({ $0 }) {
+                for p in [s.a, s.b, s.c] {
                     let q = d.pagePoint(p)
                     XCTAssertTrue(q.x >= f.minX - 1e-9 && q.x <= f.maxX + 1e-9 && q.y >= f.minY - 1e-9 && q.y <= f.maxY + 1e-9)
                 }

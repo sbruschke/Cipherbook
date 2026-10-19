@@ -73,7 +73,6 @@ struct ParchmentPage: View {
                             .opacity((0.28 + 0.4 * s.tone) * spec.artStrength)
                         var p = Path()
                         p.move(to: pt(s.a)); p.addQuadCurve(to: pt(s.b), control: pt(s.c))
-                        if let l = s.barbL, let r = s.barbR { p.move(to: pt(l)); p.addLine(to: pt(s.b)); p.addLine(to: pt(r)) }
                         ctx.stroke(p, with: .color(color),
                                    style: StrokeStyle(lineWidth: (s.widthA + s.widthB) * 0.55, lineCap: .round, lineJoin: .round))
                     }

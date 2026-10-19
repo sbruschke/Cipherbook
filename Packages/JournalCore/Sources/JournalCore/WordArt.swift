@@ -4,8 +4,6 @@ public struct WordArtStroke: Equatable {
     public var a: Pt
     public var c: Pt
     public var b: Pt
-    public var barbL: Pt?
-    public var barbR: Pt?
     public var widthA: Double
     public var widthB: Double
     public var tone: Double
@@ -100,26 +98,15 @@ public enum WordArt {
                 let widthA = g.range(0.9, 1.5)
                 let widthB = widthA * g.range(0.55, 0.85)
 
-                var hx = p1.x - c.x, hy = p1.y - c.y
-                let hl = (hx * hx + hy * hy).squareRoot()
-                if hl < 1e-9 { hx = dx / len; hy = dy / len } else { hx /= hl; hy /= hl }
-                let barbLen = len * g.range(0.16, 0.24)
-                let th = g.range(18, 32) * .pi / 180
-                let bx = -hx, by = -hy
-                func rot(_ a: Double) -> Pt { Pt(bx * cos(a) - by * sin(a), bx * sin(a) + by * cos(a)) }
-                let l = rot(th), r = rot(-th)
-                strokes.append(WordArtStroke(
-                    a: p0, c: c, b: p1,
-                    barbL: Pt(p1.x + l.x * barbLen, p1.y + l.y * barbLen),
-                    barbR: Pt(p1.x + r.x * barbLen, p1.y + r.y * barbLen),
-                    widthA: widthA, widthB: widthB, tone: tone, wordIndex: wi))
+                strokes.append(WordArtStroke(a: p0, c: c, b: p1,
+                                             widthA: widthA, widthB: widthB, tone: tone, wordIndex: wi))
             }
         }
         guard !strokes.isEmpty else { return .empty }
 
         // Fit the whole picture into the −0.5…0.5 square, preserving aspect.
         var pts: [Pt] = []
-        for s in strokes { pts += [s.a, s.c, s.b] + [s.barbL, s.barbR].compactMap { $0 } }
+        for s in strokes { pts += [s.a, s.c, s.b] }
         let minX = pts.map(\.x).min()!, maxX = pts.map(\.x).max()!
         let minY = pts.map(\.y).min()!, maxY = pts.map(\.y).max()!
         let extent = max(maxX - minX, maxY - minY)
@@ -129,7 +116,6 @@ public enum WordArt {
         strokes = strokes.map { s in
             var s = s
             s.a = norm(s.a); s.c = norm(s.c); s.b = norm(s.b)
-            s.barbL = s.barbL.map(norm); s.barbR = s.barbR.map(norm)
             return s
         }
 

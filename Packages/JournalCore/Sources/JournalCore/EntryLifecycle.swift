@@ -17,4 +17,15 @@ public extension JournalData {
         e.deleted = true; e.updatedAt = now; e.updatedBy = deviceID
         entries[entryID] = e; pending.insert("entry/\(entryID)")
     }
+
+    /// Turns the entry's pile `by` steps (positive: the top page goes to the bottom). Only the entry changes;
+    /// the pages keep their order, so the reading order of the entry is never touched by browsing.
+    mutating func turnPile(entryID: String, by steps: Int, now: Int64) {
+        guard var e = entries[entryID] else { return }
+        let n = livePages(of: entryID).count
+        guard n > 1 else { return }
+        e.turned = (((e.turned ?? 0) + steps) % n + n) % n
+        e.updatedAt = now; e.updatedBy = deviceID
+        entries[entryID] = e; pending.insert("entry/\(entryID)")
+    }
 }

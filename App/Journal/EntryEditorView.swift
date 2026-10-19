@@ -156,12 +156,21 @@ struct PageTextView: UIViewRepresentable {
         v.backgroundColor = .clear
         v.textContainerInset = .zero
         v.textContainer.lineFragmentPadding = 0
-        v.isScrollEnabled = false
+        // A non-scrolling text view reports its content height as its size, so SwiftUI let it grow past
+        // the page as you typed. Scrolling on + a pinned size keeps it exactly the page's text area.
+        v.isScrollEnabled = true
+        v.alwaysBounceVertical = false
+        v.showsVerticalScrollIndicator = false
+        v.contentInsetAdjustmentBehavior = .never
         v.clipsToBounds = true
         v.autocorrectionType = .default
         v.delegate = context.coordinator
         DispatchQueue.main.async { v.becomeFirstResponder() }
         return v
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
+        CGSize(width: proposal.width ?? uiView.bounds.width, height: proposal.height ?? uiView.bounds.height)
     }
 
     func updateUIView(_ v: UITextView, context: Context) {

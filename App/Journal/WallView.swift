@@ -27,7 +27,7 @@ struct WallView: View {
                 ZStack {
                     ForEach(store.liveEntries) { e in
                         let lifted = draggingID == e.id
-                        StackThumb(entry: e, pages: store.pages(of: e.id), lifted: lifted)
+                        StackThumb(entry: e, pages: store.pile(of: e.id), lifted: lifted)
                             .offset(x: e.x + (lifted ? dragOffset.width : 0),
                                     y: e.y + (lifted ? dragOffset.height : 0))
                             .zIndex(lifted ? 1 : 0)

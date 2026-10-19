@@ -25,7 +25,7 @@ struct StackFanView: View {
     @State private var dragX: CGFloat = 0        // live drag of the top page, signed
 
     var body: some View {
-        let pages = store.pages(of: entryID)
+        let pages = store.pile(of: entryID)
         let top = pages.count - 1
         ZStack {
             Color.black.opacity(0.78).ignoresSafeArea()
@@ -38,14 +38,14 @@ struct StackFanView: View {
                 }
             }
             .contentShape(Rectangle())
-            .onTapGesture { if shuffle == nil, top >= 0 { onEdit(top) } }
+            .onTapGesture { if shuffle == nil, top >= 0 { edit(pages[top]) } }
             .gesture(slide(count: pages.count))
             .contextMenu {
                 if pages.count > 1 {
                     Button("Send this page to the back") { play(from: top, to: 0, count: pages.count, dir: 1) }
                     Button("Bring the bottom page to the front") { play(from: 0, to: top, count: pages.count, dir: 1) }
                 }
-                if top >= 0 { Button("Edit this page") { onEdit(top) } }
+                if top >= 0 { Button("Edit this page") { edit(pages[top]) } }
             }
             VStack {
                 HStack {
@@ -61,6 +61,11 @@ struct StackFanView: View {
                     .font(.caption).foregroundColor(.white.opacity(0.7)).padding(.bottom, 12)
             }
         }
+    }
+
+    /// Opens the editor on a page, by its place in reading order (the pile may be turned).
+    private func edit(_ page: Page) {
+        if let i = store.pages(of: entryID).firstIndex(where: { $0.id == page.id }) { onEdit(i) }
     }
 
     // MARK: per-page state
@@ -123,7 +128,7 @@ struct StackFanView: View {
                 if t >= 1 { break }
                 try? await Task.sleep(nanoseconds: 16_000_000)
             }
-            store.reorder(entryID: entryID, from: from, to: to)
+            store.turnPile(entryID, by: to == 0 ? 1 : -1)      // the pile turns; reading order is untouched
             shuffle = nil
             progress = 0
         }

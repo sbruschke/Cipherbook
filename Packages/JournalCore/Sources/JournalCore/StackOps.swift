@@ -39,6 +39,15 @@ public enum StackOps {
         ]
     }
 
+    /// The pile bottom → top after `turned` turns, each sending the top page to the bottom. `pages` is in
+    /// reading order. Any integer is fine (it wraps), so turning backwards works too.
+    public static func pile(_ pages: [Page], turned: Int?) -> [Page] {
+        let list = pages.sorted { $0.order < $1.order }
+        guard list.count > 1 else { return list }
+        let k = (((turned ?? 0) % list.count) + list.count) % list.count
+        return Array(list.suffix(k)) + Array(list.prefix(list.count - k))
+    }
+
     /// The page's state at progress `t` (0…1): offset and lift interpolate linearly between the two
     /// surrounding keyframes; the layer is the earlier keyframe's (it steps, it never blends).
     public static func sample(_ path: [ShuffleKeyframe], at t: Double) -> ShuffleKeyframe {
